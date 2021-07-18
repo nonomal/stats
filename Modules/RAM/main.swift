@@ -10,8 +10,7 @@
 //
 
 import Cocoa
-import StatsKit
-import ModuleKit
+import Kit
 
 public struct RAM_Usage: value_t {
     var total: Double
@@ -30,7 +29,7 @@ public struct RAM_Usage: value_t {
     var pressureLevel: Int
     var swap: Swap
     
-    public var widget_value: Double {
+    public var widgetValue: Double {
         get {
             return self.usage
         }

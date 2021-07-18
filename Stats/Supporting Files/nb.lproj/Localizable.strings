@@ -9,13 +9,32 @@
 //  Copyright © 2020 Serhiy Mytrovtsiy. All rights reserved.
 //
 
+// Modules
+"CPU" = "CPU";
+"Open CPU settings" = "Open CPU settings";
+"GPU" = "GPU";
+"Open GPU settings" = "Open GPU settings";
+"RAM" = "RAM";
+"Open RAM settings" = "Open RAM settings";
+"Disk" = "Disk";
+"Open Disk settings" = "Open disk settings";
+"Sensors" = "Sensors";
+"Open Sensors settings" = "Open sensors settings";
+"Fans" = "Fans";
+"Open Fans settings" = "Open fans settings";
+"Network" = "Network";
+"Open Network settings" = "Open network settings";
+"Battery" = "Battery";
+"Open Battery settings" = "Open battery settings";
+"Bluetooth" = "Bluetooth";
+"Open Bluetooth settings" = "Open bluetooth settings";
+
 // Words
 "Unknown" = "Ukjent";
 "Version" = "Versjon";
 "Processor" = "Prosessor";
 "Memory" = "Minne";
 "Graphics" = "Grafikk";
-"Disk" = "Disk";
 "Close" = "Lukk";
 "Download" = "Nedlasting";
 "Install" = "Installer";
@@ -24,7 +43,7 @@
 "Yes" = "Ja";
 "No" = "Nei";
 "Automatic" = "Automatisk";
-"Manual" = "Manual";
+"Manual" = "Manuell";
 "None" = "Ingen";
 "Dots" = "Prikker";
 "Arrows" = "Piler";
@@ -32,8 +51,14 @@
 "Short" = "Kort";
 "Long" = "Lang";
 "Statistics" = "Statistikk";
-"Max" = "Max";
+"Max" = "Maks";
 "Min" = "Min";
+"Reset" = "Nullstill";
+"Alignment" = "Alignment";
+"Left alignment" = "Left";
+"Center alignment" = "Center";
+"Right alignment" = "Right";
+"Dashboard" = "Dashboard";
 
 // Alerts
 "New version available" = "Ny versjon tilgjengelig";
@@ -47,7 +72,7 @@
 "Support the application" = "Støtt programmet";
 "Close application" = "Lukk programmet";
 "Open application settings" = "Åpne programinnstillinger";
-"Open moduleName settings" = "Åpne innstillinger for %0";
+"Open dashboard" = "Open dashboard";
 
 // Application settings
 "Update application" = "Oppdater programmet";
@@ -94,11 +119,12 @@
 "Battery widget" = "Batteri";
 "Text widget" = "Tekst";
 "Memory widget" = "Tall";
+"Static width" = "Static width";
 
 // Module Kit
 "Open module settings" = "Åpne modulinnstillinger";
 "Select widget" = "Velg %0-visning";
-"Open widget settings" = "Open widget settings";
+"Open widget settings" = "Åpne widgetinnstillinger";
 "Update interval" = "Oppdateringsintervall";
 "Usage history" = "Brukshistorikk";
 "Details" = "Detaljer";
@@ -165,7 +191,6 @@
 "Public IP" = "Offentlig IP";
 "Local IP" = "Lokal IP";
 "Interface" = "Grensesnitt";
-"Network" = "Nettverk";
 "Physical address" = "Fysisk addresse";
 "Refresh" = "Refresh";
 "Click to copy public IP address" = "Klikk for å kopiere offentlig IP-adresse";
@@ -187,7 +212,6 @@
 "Battery Power" = "Batteri";
 "Time" = "Tid";
 "Health" = "Helse";
-"Battery" = "Batteri";
 "Amperage" = "Strømstyrke";
 "Voltage" = "Spenning";
 "Cycles" = "Sykluser";
@@ -201,48 +225,49 @@
 "Fully charged" = "Fullstendig ladet";
 "Not connected" = "Ikke koblet til";
 "Low level notification" = "Varsling ved lavt nivå";
-"High level notification" = "High level notification";
+"High level notification" = "Varsling ved høyt nivå";
 "Low battery" = "Lavt batterinivå";
-"High battery" = "High battery";
+"High battery" = "Høyt batterinivå";
 "Battery remaining" = "%0% igjen";
-"Battery remaining to full charge" = "%0% to full charge";
+"Battery remaining to full charge" = "%0% til fulladet";
 "Percentage" = "Prosent";
 "Percentage and time" = "Prosent og tid";
 "Time and percentage" = "Tid og prosent";
 "Time format" = "Tidsformat";
 "Hide additional information when full" = "Skjul ekstra information når fulladet";
+"Last charge" = "Siste lading";
 
-// Fans
-"Fans" = "Vifter";
+// Bluetooth
+"Battery to show" = "Battery to show";
 
 // Colors
-"Based on utilization" = "Based on utilization";
-"Based on pressure" = "Based on pressure";
-"System accent" = "System accent";
-"Monochrome accent" = "Monochrome accent";
-"Clear" = "Clear";
-"White" = "White";
-"Black" = "Black";
-"Gray" = "Gray";
-"Second gray" = "Second gray";
-"Dark gray" = "Dark gray";
-"Light gray" = "Light gray";
-"Red" = "Red";
-"Second red" = "Second red";
-"Green" = "Green";
-"Second green" = "Second green";
-"Blue" = "Blue";
-"Second blue" = "Second blue";
-"Yellow" = "Yellow";
-"Second yellow" = "Second yellow";
-"Orange" = "Orange";
-"Second orange" = "Second orange";
-"Purple" = "Purple";
-"Second purple" = "Second purple";
-"Brown" = "Brown";
-"Second brown" = "Second brown";
-"Cyan" = "Cyan";
+"Based on utilization" = "Basert på bruk";
+"Based on pressure" = "Basert på trykk";
+"System accent" = "Systemaksent";
+"Monochrome accent" = "Ensfarget aksent";
+"Clear" = "Blank";
+"White" = "Hvit";
+"Black" = "Svart";
+"Gray" = "Grå";
+"Second gray" = "Grå 2";
+"Dark gray" = "Mørkegrå";
+"Light gray" = "Lysegrå";
+"Red" = "Rød";
+"Second red" = "Rød 2";
+"Green" = "Grønn";
+"Second green" = "Grønn 2";
+"Blue" = "Blå";
+"Second blue" = "Blå 2";
+"Yellow" = "Gul";
+"Second yellow" = "Gul 2";
+"Orange" = "Oransje";
+"Second orange" = "Oransje 2";
+"Purple" = "Lilla";
+"Second purple" = "Lilla 2";
+"Brown" = "Brun";
+"Second brown" = "Brun 2";
+"Cyan" = "Turkis";
 "Magenta" = "Magenta";
-"Pink" = "Pink";
-"Teal" = "Teal";
+"Pink" = "Rosa";
+"Teal" = "Blågrønn";
 "Indigo" = "Indigo";

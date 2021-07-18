@@ -10,8 +10,7 @@
 //
 
 import Cocoa
-import StatsKit
-import ModuleKit
+import Kit
 import SystemConfiguration
 
 public enum Network_t: String {
@@ -58,7 +57,7 @@ public struct Network_Usage: value_t {
         self.ssid = nil
     }
     
-    public var widget_value: Double = 0
+    public var widgetValue: Double = 0
 }
 
 public struct Network_Process {
@@ -130,7 +129,7 @@ public class Network: Module {
                 list.append(displayName as String)
             }
         }
-        return list.count > 0
+        return !list.isEmpty
     }
     
     private func usageCallback(_ raw: Network_Usage?) {

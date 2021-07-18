@@ -10,8 +10,7 @@
 //
 
 import Cocoa
-import ModuleKit
-import StatsKit
+import Kit
 
 internal class Popup: NSStackView, Popup_p {
     public var sizeCallback: ((NSSize) -> Void)? = nil
@@ -73,6 +72,9 @@ internal class FanView: NSStackView {
     private var slider: NSSlider? = nil
     private var controlView: NSView? = nil
     private var debouncer: DispatchWorkItem? = nil
+    
+    private var minBtn: NSButton? = nil
+    private var maxBtn: NSButton? = nil
     
     public init(_ fan: Fan, width: CGFloat, callback: @escaping (() -> Void)) {
         self.fan = fan
@@ -154,7 +156,10 @@ internal class FanView: NSStackView {
         row.heightAnchor.constraint(equalToConstant: row.bounds.height).isActive = true
         
         let value = self.fan.value
-        let percentage = "\((100*Int(value)) / Int(self.fan.maxSpeed))%"
+        var percentage = ""
+        if value != 1 && self.fan.maxSpeed != 1 {
+            percentage = "\((100*Int(value)) / Int(self.fan.maxSpeed))%"
+        }
         let percentageWidth: CGFloat = 40
         
         let keyField: NSTextField = TextView(frame: NSRect(
@@ -199,29 +204,25 @@ internal class FanView: NSStackView {
         buttons.callback = { [weak self] (mode: FanMode) in
             self?.fan.mode = mode
             if let fan = self?.fan {
-                SMC.shared.setFanMode(fan.id, mode: mode)
+                SMCHelper.shared.setFanMode(fan.id, mode: mode.rawValue)
             }
             self?.toggleMode()
         }
+        buttons.turbo = { [weak self] in
+            self?.fan.mode = .forced
+            if let fan = self?.fan {
+                SMCHelper.shared.setFanMode(fan.id, mode: FanMode.forced.rawValue)
+                SMCHelper.shared.setFanSpeed(fan.id, speed: Int(fan.maxSpeed))
+            }
+        }
         
-        let rootBtn: NSButton = NSButton(frame: NSRect(x: 0, y: 4, width: view.frame.width, height: view.frame.height - 8))
-        rootBtn.title = "Control fan (root required)"
-        rootBtn.setButtonType(.momentaryLight)
-        rootBtn.isBordered = false
-        rootBtn.target = self
-        rootBtn.action = #selector(self.askForRoot)
-        rootBtn.wantsLayer = true
-        rootBtn.layer?.cornerRadius = 3
-        rootBtn.layer?.borderWidth = 1
-        rootBtn.layer?.borderColor = NSColor.lightGray.cgColor
-        
-        view.addSubview(isRoot() ? buttons : rootBtn)
+        view.addSubview(buttons)
         
         return view
     }
     
     private func control() -> NSView {
-        let view: NSView = NSView(frame: NSRect(x: 0, y: 0, width: self.frame.width, height: 44))
+        let view: NSView = NSView(frame: NSRect(x: 0, y: 0, width: self.frame.width, height: 46))
         view.identifier = NSUserInterfaceItemIdentifier(rawValue: "control")
         view.heightAnchor.constraint(equalToConstant: view.bounds.height).isActive = true
         
@@ -231,75 +232,60 @@ internal class FanView: NSStackView {
         
         let slider: NSSlider = NSSlider(frame: NSRect(x: 0, y: 0, width: view.frame.width, height: 26))
         slider.minValue = self.fan.minSpeed
-        slider.doubleValue = self.fan.value
         slider.maxValue = self.fan.maxSpeed
+        slider.doubleValue = self.fan.value
         slider.isContinuous = true
         slider.action = #selector(self.speedChange)
         slider.target = self
         
-        let levels: NSView = NSView(frame: NSRect(x: 0, y: 0, width: view.frame.width, height: 14))
+        let levels: NSView = NSView(frame: NSRect(x: 0, y: 0, width: view.frame.width, height: 16))
         
-        let minField: NSTextField = TextView(frame: NSRect(x: 0, y: 0, width: 80, height: levels.frame.height))
-        minField.font = NSFont.systemFont(ofSize: 11, weight: .light)
-        minField.textColor = .secondaryLabelColor
-        minField.stringValue = "\(LocalizedString("Min")): \(Int(self.fan.minSpeed))"
-        minField.alignment = .left
+        let minBtn: NSButton = NSButton(frame: NSRect(x: 0, y: 0, width: 50, height: levels.frame.height))
+        minBtn.title = "\(Int(self.fan.minSpeed))"
+        minBtn.toolTip = localizedString("Min")
+        minBtn.setButtonType(.toggle)
+        minBtn.isBordered = false
+        minBtn.target = self
+        minBtn.state = .off
+        minBtn.action = #selector(self.setMin)
+        minBtn.wantsLayer = true
+        minBtn.layer?.cornerRadius = 3
+        minBtn.layer?.borderWidth = 1
+        minBtn.layer?.borderColor = NSColor.lightGray.cgColor
         
         let valueField: NSTextField = TextView(frame: NSRect(x: 80, y: 0, width: levels.frame.width - 160, height: levels.frame.height))
         valueField.font = NSFont.systemFont(ofSize: 11, weight: .light)
         valueField.textColor = .secondaryLabelColor
         valueField.alignment = .center
         
-        let maxField: NSTextField = TextView(frame: NSRect(x: levels.frame.width - 80, y: 0, width: 80, height: levels.frame.height))
-        maxField.font = NSFont.systemFont(ofSize: 11, weight: .light)
-        maxField.textColor = .secondaryLabelColor
-        maxField.stringValue = "\(LocalizedString("Max")): \(Int(self.fan.maxSpeed))"
-        maxField.alignment = .right
+        let maxBtn: NSButton = NSButton(frame: NSRect(x: levels.frame.width - 50, y: 0, width: 50, height: levels.frame.height))
+        maxBtn.title = "\(Int(self.fan.maxSpeed))"
+        maxBtn.toolTip = localizedString("Max")
+        maxBtn.setButtonType(.toggle)
+        maxBtn.isBordered = false
+        maxBtn.target = self
+        maxBtn.state = .off
+        maxBtn.wantsLayer = true
+        maxBtn.action = #selector(self.setMax)
+        maxBtn.layer?.cornerRadius = 3
+        maxBtn.layer?.borderWidth = 1
+        maxBtn.layer?.borderColor = NSColor.lightGray.cgColor
         
         controls.addArrangedSubview(slider)
         
-        levels.addSubview(minField)
+        levels.addSubview(minBtn)
         levels.addSubview(valueField)
-        levels.addSubview(maxField)
+        levels.addSubview(maxBtn)
         
         view.addSubview(controls)
         view.addSubview(levels)
         
         self.slider = slider
         self.sliderValueField = valueField
+        self.minBtn = minBtn
+        self.maxBtn = maxBtn
+        
         return view
-    }
-    
-    @objc private func askForRoot(_ sender: NSButton) {
-        DispatchQueue.main.async {
-            ensureRoot()
-        }
-    }
-    
-    @objc private func speedChange(_ sender: NSSlider) {
-        guard let field = self.sliderValueField else {
-            return
-        }
-        
-        let value = sender.doubleValue
-        field.stringValue = "\(Int(value)) RPM"
-        field.textColor = .secondaryLabelColor
-        
-        self.debouncer?.cancel()
-        
-        let task = DispatchWorkItem { [weak self] in
-            DispatchQueue.global(qos: .userInteractive).async { [weak self] in
-                if let id = self?.fan.id {
-                    SMC.shared.setFanSpeed(id, speed: Int(value))
-                }
-                DispatchQueue.main.async {
-                    field.textColor = .systemBlue
-                }
-            }
-        }
-        
-        self.debouncer = task
-        DispatchQueue.main.asyncAfter(deadline: DispatchTime.now() + 0.3, execute: task)
     }
     
     private func toggleMode() {
@@ -308,9 +294,13 @@ internal class FanView: NSStackView {
         }
         
         if self.fan.mode == .automatic {
-            view.removeFromSuperview()
             self.sliderValueField?.stringValue = ""
-            self.slider?.doubleValue = self.fan.minSpeed
+            self.sliderValueField?.textColor = .secondaryLabelColor
+            self.slider?.doubleValue = self.fan.value
+            self.minBtn?.state = .off
+            self.maxBtn?.state = .off
+            
+            view.removeFromSuperview()
         } else if self.fan.mode == .forced {
             self.addArrangedSubview(view)
         }
@@ -320,15 +310,67 @@ internal class FanView: NSStackView {
         self.sizeCallback()
     }
     
+    private func setSpeed(value: Int, then: @escaping () -> Void = {}) {
+        self.sliderValueField?.stringValue = "\(value) RPM"
+        self.sliderValueField?.textColor = .secondaryLabelColor
+        
+        self.debouncer?.cancel()
+        
+        let task = DispatchWorkItem { [weak self] in
+            DispatchQueue.global(qos: .userInteractive).async { [weak self] in
+                if let id = self?.fan.id {
+                    SMCHelper.shared.setFanSpeed(id, speed: value)
+                }
+                then()
+            }
+        }
+        
+        self.debouncer = task
+        DispatchQueue.main.asyncAfter(deadline: DispatchTime.now() + 0.3, execute: task)
+    }
+    
+    @objc private func speedChange(_ sender: NSSlider) {
+        let value = sender.doubleValue
+        
+        self.minBtn?.state = .off
+        self.maxBtn?.state = .off
+        
+        self.setSpeed(value: Int(value), then: {
+            DispatchQueue.main.async {
+                self.sliderValueField?.textColor = .systemBlue
+            }
+        })
+    }
+    
+    @objc func setMin(_ sender: NSButton) {
+        self.slider?.doubleValue = self.fan.minSpeed
+        self.maxBtn?.state = .off
+        self.setSpeed(value: Int(self.fan.minSpeed))
+    }
+    
+    @objc func setMax(_ sender: NSButton) {
+        self.slider?.doubleValue = self.fan.maxSpeed
+        self.minBtn?.state = .off
+        self.setSpeed(value: Int(self.fan.maxSpeed))
+    }
+    
     public func update(_ value: Fan) {
         DispatchQueue.main.async(execute: {
             if (self.window?.isVisible ?? false) || !self.ready {
-                if let view = self.valueField {
-                    view.stringValue = value.formattedValue
+                var percentage = ""
+                if value.value != 1 && self.fan.maxSpeed != 1 {
+                    percentage = "\((100*Int(value.value)) / Int(self.fan.maxSpeed))%"
                 }
                 
-                if let view = self.percentageField {
-                    view.stringValue = "\((100*Int(value.value)) / Int(self.fan.maxSpeed))%"
+                self.percentageField?.stringValue = percentage
+                self.valueField?.stringValue = value.formattedValue
+                self.sliderValueField?.stringValue = value.formattedValue
+                
+                if value.minSpeed != 1 && value.value <= value.minSpeed+10 {
+                    self.minBtn?.state = .on
+                }
+                if value.minSpeed != 1 && value.value >= value.maxSpeed-10 {
+                    self.maxBtn?.state = .on
                 }
                 
                 self.ready = true
@@ -339,21 +381,29 @@ internal class FanView: NSStackView {
 
 private class ModeButtons: NSStackView {
     public var callback: (FanMode) -> Void = {_ in }
+    public var turbo: () -> Void = {}
     
-    private var autoBtn: NSButton = NSButton(title: LocalizedString("Automatic"), target: nil, action: #selector(autoMode))
-    private var manualBtn: NSButton = NSButton(title: LocalizedString("Manual"), target: nil, action: #selector(manualMode))
+    private var autoBtn: NSButton = NSButton(title: localizedString("Automatic"), target: nil, action: #selector(autoMode))
+    private var manualBtn: NSButton = NSButton(title: localizedString("Manual"), target: nil, action: #selector(manualMode))
+    private var turboBtn: NSButton = NSButton(image: NSImage(named: NSImage.Name("ac_unit"))!, target: nil, action: #selector(turboMode))
     
     public init(frame: NSRect, mode: FanMode) {
         super.init(frame: frame)
         
         self.orientation = .horizontal
         self.alignment = .centerY
-        self.distribution = .fillEqually
+        self.distribution = .fillProportionally
+        self.spacing = 0
         
         self.wantsLayer = true
         self.layer?.cornerRadius = 3
         self.layer?.borderWidth = 1
         self.layer?.borderColor = NSColor.lightGray.cgColor
+        
+        let modes: NSStackView = NSStackView(frame: NSRect(x: 0, y: 0, width: self.frame.width, height: self.frame.height))
+        modes.orientation = .horizontal
+        modes.alignment = .centerY
+        modes.distribution = .fillEqually
         
         self.autoBtn.setButtonType(.toggle)
         self.autoBtn.isBordered = false
@@ -365,8 +415,21 @@ private class ModeButtons: NSStackView {
         self.manualBtn.target = self
         self.manualBtn.state = mode == .forced ? .on : .off
         
-        self.addArrangedSubview(self.autoBtn)
-        self.addArrangedSubview(self.manualBtn)
+        modes.addArrangedSubview(self.autoBtn)
+        modes.addArrangedSubview(self.manualBtn)
+        
+        self.turboBtn.setButtonType(.toggle)
+        self.turboBtn.isBordered = false
+        self.turboBtn.target = self
+        
+        NSLayoutConstraint.activate([
+            self.turboBtn.widthAnchor.constraint(equalToConstant: 26),
+            self.turboBtn.heightAnchor.constraint(equalToConstant: self.frame.height),
+            modes.heightAnchor.constraint(equalToConstant: self.frame.height)
+        ])
+        
+        self.addArrangedSubview(modes)
+        self.addArrangedSubview(self.turboBtn)
     }
     
     required init?(coder: NSCoder) {
@@ -380,6 +443,7 @@ private class ModeButtons: NSStackView {
         }
         
         self.manualBtn.state = .off
+        self.turboBtn.state = .off
         self.callback(.automatic)
     }
     
@@ -390,6 +454,18 @@ private class ModeButtons: NSStackView {
         }
         
         self.autoBtn.state = .off
+        self.turboBtn.state = .off
         self.callback(.forced)
+    }
+    
+    @objc func turboMode(_ sender: NSButton) {
+        if sender.state.rawValue == 0 {
+            self.turboBtn.state = .on
+            return
+        }
+        
+        self.manualBtn.state = .off
+        self.autoBtn.state = .off
+        self.turbo()
     }
 }

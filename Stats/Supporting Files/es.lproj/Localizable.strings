@@ -9,13 +9,32 @@
 //  Copyright © 2020 Serhiy Mytrovtsiy. All rights reserved.
 //
 
+// Modules
+"CPU" = "CPU";
+"Open CPU settings" = "Open CPU settings";
+"GPU" = "GPU";
+"Open GPU settings" = "Open GPU settings";
+"RAM" = "RAM";
+"Open RAM settings" = "Open RAM settings";
+"Disk" = "Disk";
+"Open Disk settings" = "Open disk settings";
+"Sensors" = "Sensors";
+"Open Sensors settings" = "Open sensors settings";
+"Fans" = "Fans";
+"Open Fans settings" = "Open fans settings";
+"Network" = "Network";
+"Open Network settings" = "Open network settings";
+"Battery" = "Battery";
+"Open Battery settings" = "Open battery settings";
+"Bluetooth" = "Bluetooth";
+"Open Bluetooth settings" = "Open bluetooth settings";
+
 // Words
 "Unknown" = "Desconocido";
 "Version" = "Versión";
 "Processor" = "Procesador";
 "Memory" = "Memoria";
 "Graphics" = "Gráficos";
-"Disk" = "Disco";
 "Close" = "Cerrar";
 "Download" = "Descargar";
 "Install" = "Instalar";
@@ -34,6 +53,12 @@
 "Statistics" = "Estadísticas";
 "Max" = "Max";
 "Min" = "Min";
+"Reset" = "Reset";
+"Alignment" = "Alignment";
+"Left alignment" = "Left";
+"Center alignment" = "Center";
+"Right alignment" = "Right";
+"Dashboard" = "Dashboard";
 
 // Alerts
 "New version available" = "Nueva versión disponible";
@@ -47,7 +72,7 @@
 "Support the application" = "Apoya la aplicación";
 "Close application" = "Cerrar la aplicación";
 "Open application settings" = "Abrir la configuración de la aplicación";
-"Open moduleName settings" = "Abrir la configuración del módulo %0";
+"Open dashboard" = "Open dashboard";
 
 // Application settings
 "Update application" = "Actualizar la aplicación";
@@ -94,6 +119,7 @@
 "Battery widget" = "Batería";
 "Text widget" = "Texto";
 "Memory widget" = "Memoria";
+"Static width" = "Static width";
 
 // Module Kit
 "Open module settings" = "Abrir la configruación del módulo";
@@ -165,9 +191,8 @@
 "Public IP" = "IP Pública";
 "Local IP" = "IP Local";
 "Interface" = "Interfaz";
-"Network" = "Red";
 "Physical address" = "Dirección física";
-"Refresh" = "Refresh";
+"Refresh" = "Refrescar";
 "Click to copy public IP address" = "Haga clic para copiar la dirección IP pública";
 "Click to copy local IP address" = "Haga clic para copiar la dirección IP local";
 "Click to copy wifi name" = "Haga clic para copiar el nombre de la red wifi";
@@ -187,7 +212,6 @@
 "Battery Power" = "Alimentado por batería";
 "Time" = "Tiempo";
 "Health" = "Salud";
-"Battery" = "Batería";
 "Amperage" = "Amperaje";
 "Voltage" = "Voltaje";
 "Cycles" = "Número de ciclos";
@@ -211,9 +235,10 @@
 "Time and percentage" = "Tiempo y porcentaje";
 "Time format" = "Formato de tiempo";
 "Hide additional information when full" = "Ocultar información adicional cuando la batería está cargada";
+"Last charge" = "Última carga";
 
-// Fans
-"Fans" = "Ventiladores";
+// Bluetooth
+"Battery to show" = "Battery to show";
 
 // Colors
 "Based on utilization" = "Basado en utilización";

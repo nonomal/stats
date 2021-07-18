@@ -7,8 +7,7 @@
 //
 
 import Cocoa
-import ModuleKit
-import StatsKit
+import Kit
 
 public struct CPU_Load: value_t {
     var totalUsage: Double = 0
@@ -18,7 +17,7 @@ public struct CPU_Load: value_t {
     var userLoad: Double = 0
     var idleLoad: Double = 0
     
-    public var widget_value: Double {
+    public var widgetValue: Double {
         get {
             return self.totalUsage
         }
@@ -52,9 +51,9 @@ public class CPU: Module {
         
         self.loadReader = LoadReader()
         self.processReader = ProcessReader()
-        self.temperatureReader = TemperatureReader(popup: true)
         
         #if arch(x86_64)
+        self.temperatureReader = TemperatureReader(popup: true)
         self.frequencyReader = FrequencyReader(popup: true)
         #endif
         

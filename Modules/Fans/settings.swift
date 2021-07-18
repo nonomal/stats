@@ -10,10 +10,9 @@
 //
 
 import Cocoa
-import StatsKit
-import ModuleKit
+import Kit
 
-internal class Settings: NSView, Settings_v {
+internal class Settings: NSStackView, Settings_v {
     private var updateIntervalValue: Int = 1
     
     private let title: String
@@ -36,7 +35,15 @@ internal class Settings: NSView, Settings_v {
         ))
         
         self.wantsLayer = true
-        self.canDrawConcurrently = true
+        self.orientation = .vertical
+        self.distribution = .gravityAreas
+        self.edgeInsets = NSEdgeInsets(
+            top: Constants.Settings.margin,
+            left: Constants.Settings.margin,
+            bottom: Constants.Settings.margin,
+            right: Constants.Settings.margin
+        )
+        self.spacing = Constants.Settings.margin
         
         self.updateIntervalValue = Store.shared.int(key: "\(self.title)_updateInterval", defaultValue: self.updateIntervalValue)
         self.labelState = Store.shared.bool(key: "\(self.title)_label", defaultValue: self.labelState)
@@ -52,45 +59,51 @@ internal class Settings: NSView, Settings_v {
         }
         self.subviews.forEach{ $0.removeFromSuperview() }
         
-        let rowHeight: CGFloat = 30
-        let settingsHeight: CGFloat = rowHeight*2 + Constants.Settings.margin
-        let sensorsListHeight: CGFloat = (rowHeight+Constants.Settings.margin) * CGFloat(self.list.pointee.count) + ((rowHeight+Constants.Settings.margin))
-        let height: CGFloat = settingsHeight + sensorsListHeight
-        let x: CGFloat = height < 360 ? 0 : Constants.Settings.margin
-        let view: NSView = NSView(frame: NSRect(
-            x: Constants.Settings.margin,
-            y: Constants.Settings.margin,
-            width: self.frame.width - (Constants.Settings.margin*2) - x,
-            height: height
-        ))
-        
-        self.addSubview(SelectTitleRow(
-            frame: NSRect(x: Constants.Settings.margin, y: height - rowHeight, width: view.frame.width, height: rowHeight),
-            title: LocalizedString("Update interval"),
+        self.addArrangedSubview(selectTitleRow(
+            frame: NSRect(
+                x: Constants.Settings.margin,
+                y: 0,
+                width: self.frame.width - (Constants.Settings.margin*2),
+                height: Constants.Settings.row
+            ),
+            title: localizedString("Update interval"),
             action: #selector(changeUpdateInterval),
             items: ReaderUpdateIntervals.map{ "\($0) sec" },
             selected: "\(self.updateIntervalValue) sec"
         ))
         
-        self.addSubview(ToggleTitleRow(
-            frame: NSRect(x: Constants.Settings.margin, y: height - rowHeight*2 - Constants.Settings.margin, width: view.frame.width, height: rowHeight),
-            title: LocalizedString("Label"),
+        self.addArrangedSubview(toggleTitleRow(
+            frame: NSRect(
+                x: Constants.Settings.margin,
+                y: 0,
+                width: self.frame.width - (Constants.Settings.margin*2),
+                height: Constants.Settings.row
+            ),
+            title: localizedString("Label"),
             action: #selector(toggleLabelState),
             state: self.labelState
         ))
         
-        let rowTitleView: NSView = NSView(frame: NSRect(x: 0, y: height - (rowHeight*3) - Constants.Settings.margin*2, width: view.frame.width, height: rowHeight))
-        let rowTitle: NSTextField = LabelField(frame: NSRect(x: 0, y: (rowHeight-19)/2, width: view.frame.width, height: 19), LocalizedString("Fans"))
-        rowTitle.font = NSFont.systemFont(ofSize: 14, weight: .regular)
-        rowTitle.textColor = .secondaryLabelColor
-        rowTitle.alignment = .center
-        rowTitleView.addSubview(rowTitle)
-        view.addSubview(rowTitleView)
+        let view: NSStackView = NSStackView(frame: NSRect(
+            x: Constants.Settings.margin,
+            y: Constants.Settings.margin,
+            width: self.frame.width - (Constants.Settings.margin*2),
+            height: 0
+        ))
+        view.orientation = .vertical
+        view.distribution = .gravityAreas
+        view.spacing = Constants.Settings.margin
         
-        var y: CGFloat = 0
-        self.list.pointee.reversed().forEach { (f: Fan) in
-            let row: NSView = ToggleTitleRow(
-                frame: NSRect(x: 0, y: y, width: view.frame.width, height: rowHeight),
+        let title: NSTextField = LabelField(frame: NSRect(x: 0, y: 0, width: view.frame.width, height: 19), localizedString("Fans"))
+        title.font = NSFont.systemFont(ofSize: 14, weight: .regular)
+        title.textColor = .secondaryLabelColor
+        title.alignment = .center
+        title.heightAnchor.constraint(equalToConstant: title.bounds.height).isActive = true
+        view.addArrangedSubview(title)
+        
+        self.list.pointee.forEach { (f: Fan) in
+            let row: NSView = toggleTitleRow(
+                frame: NSRect(x: 0, y: 0, width: view.frame.width, height: Constants.Settings.row),
                 title: f.name,
                 action: #selector(self.handleSelection),
                 state: f.state
@@ -98,12 +111,22 @@ internal class Settings: NSView, Settings_v {
             row.subviews.filter{ $0 is NSControl }.forEach { (control: NSView) in
                 control.identifier = NSUserInterfaceItemIdentifier(rawValue: "\(f.id)")
             }
-            view.addSubview(row)
-            y += rowHeight + Constants.Settings.margin
+            view.addArrangedSubview(row)
         }
         
-        self.addSubview(view)
-        self.setFrameSize(NSSize(width: self.frame.width, height: height + (Constants.Settings.margin*1)))
+        let listHeight = view.arrangedSubviews.map({ $0.bounds.height + self.spacing }).reduce(0, +) - self.spacing
+        view.setFrameSize(NSSize(width: view.frame.width, height: listHeight))
+        NSLayoutConstraint.activate([
+            view.heightAnchor.constraint(equalToConstant: listHeight),
+            view.widthAnchor.constraint(equalToConstant: view.bounds.width)
+        ])
+        
+        self.addArrangedSubview(view)
+        
+        let h = self.arrangedSubviews.map({ $0.bounds.height + self.spacing }).reduce(0, +) - self.spacing + self.edgeInsets.top + self.edgeInsets.bottom
+        if self.frame.size.height != h {
+            self.setFrameSize(NSSize(width: self.frame.width, height: h))
+        }
     }
     
     @objc func handleSelection(_ sender: NSControl) {
@@ -116,7 +139,7 @@ internal class Settings: NSView, Settings_v {
             state = sender is NSButton ? (sender as! NSButton).state: nil
         }
         
-        Store.shared.set(key: "fan_\(id.rawValue)", value:  state! == NSControl.StateValue.on)
+        Store.shared.set(key: "fan_\(id.rawValue)", value: state! == NSControl.StateValue.on)
         self.callback()
     }
     

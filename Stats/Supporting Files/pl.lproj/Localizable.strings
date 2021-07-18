@@ -9,13 +9,32 @@
 //  Copyright © 2020 Serhiy Mytrovtsiy. All rights reserved.
 //
 
+// Modules
+"CPU" = "Procesor";
+"Open CPU settings" = "Otwórz ustawienia procesora";
+"GPU" = "Grafika";
+"Open GPU settings" = "Otwórz ustawienia grafiki";
+"RAM" = "Pamięć";
+"Open RAM settings" = "Otwórz ustawienia pamięci";
+"Disk" = "Dysk";
+"Open Disk settings" = "Otwórz ustawienia dysku";
+"Sensors" = "Czujniki";
+"Open Sensors settings" = "Otwórz ustawienia czujników";
+"Fans" = "Wentylatory";
+"Open Fans settings" = "Otwórz ustawienia wentylatorów";
+"Network" = "Sieć";
+"Open Network settings" = "Otwórz ustawienia sieci";
+"Battery" = "Bateria";
+"Open Battery settings" = "Otwórz ustawienia baterii";
+"Bluetooth" = "Bluetooth";
+"Open Bluetooth settings" = "Otwórz ustawienia bluetooth";
+
 // Words
 "Unknown" = "Nieznany";
 "Version" = "Wersja";
 "Processor" = "Procesor";
 "Memory" = "Pamięć";
 "Graphics" = "Grafika";
-"Disk" = "Dysk";
 "Close" = "Zamknij";
 "Download" = "Pobierz";
 "Install" = "Zainstaluj";
@@ -34,9 +53,15 @@
 "Statistics" = "Statystyki";
 "Max" = "Max";
 "Min" = "Min";
+"Reset" = "Zresetować";
+"Alignment" = "Wyrównanie";
+"Left alignment" = "Do lewej";
+"Center alignment" = "Centrum";
+"Right alignment" = "Do prawej";
+"Dashboard" = "Dashboard";
 
 // Alerts
-"New version available" = "Nowa wersja dostępna";
+"New version available" = "Dostępna nowa wersja";
 "Click to install the new version of Stats" = "Kliknij, aby zainstalować nową wersję";
 "Successfully updated" = "Zaktualizowano pomyślnie";
 "Stats was updated to v" = "Stats został zaktualizowany do v%0";
@@ -47,7 +72,7 @@
 "Support the application" = "Wesprzyj rozwój programu";
 "Close application" = "Zamknij program";
 "Open application settings" = "Otwórz ustawienia";
-"Open moduleName settings" = "Otwórz ustawienia %0";
+"Open dashboard" = "Otwórz dashboard";
 
 // Application settings
 "Update application" = "Aktualizuj aplikacje";
@@ -94,11 +119,12 @@
 "Battery widget" = "Bateria";
 "Text widget" = "Tekst";
 "Memory widget" = "Pamięć";
+"Static width" = "Statyczna szerokość";
 
 // Module Kit
 "Open module settings" = "Otwórz ustawienia modułu";
 "Select widget" = "Wybierz %0 widget";
-"Open widget settings" = "Open widget settings";
+"Open widget settings" = "Otwórz ustawienia widgetu";
 "Update interval" = "Interwał odświeżania";
 "Usage history" = "Historia użycia";
 "Details" = "Szczegóły";
@@ -124,7 +150,7 @@
 "GPU enabled" = "GPU włączone";
 "GPU disabled" = "GPU wyłączone";
 "GPU temperature" = "Temperatura GPU";
-"GPU utilization" = "Obciążenie GPU";
+"GPU utilization" = "Wykorzystanie GPU";
 "Vendor" = "Vendor";
 "Model" = "Model";
 "Status" = "Status";
@@ -136,7 +162,7 @@
 "Utilization" = "Wykorzystanie";
 
 // Memory
-"Memory usage" = "Wykorzystanie pamięci";
+"Memory usage" = "Użycie pamięci";
 "Memory pressure" = "Obciążenie pamięci";
 "Total" = "Całość";
 "Used" = "Użyta";
@@ -165,9 +191,8 @@
 "Public IP" = "Publiczny IP";
 "Local IP" = "Lokalny IP";
 "Interface" = "Interfejs";
-"Network" = "Sieć";
 "Physical address" = "Adres fizyczny";
-"Refresh" = "Refresh";
+"Refresh" = "Odśwież";
 "Click to copy public IP address" = "Kliknij, aby skopiować publiczny adres IP";
 "Click to copy local IP address" = "Kliknij, aby skopiować lokalny adres IP";
 "Click to copy wifi name" = "Kliknij, aby skopiować nazwę Wi-Fi";
@@ -187,7 +212,6 @@
 "Battery Power" = "Bateria";
 "Time" = "Czas";
 "Health" = "Zdrowie";
-"Battery" = "Bateria";
 "Amperage" = "Natężenie";
 "Voltage" = "Napięcie";
 "Cycles" = "Liczba cykli";
@@ -211,38 +235,39 @@
 "Time and percentage" = "Czas i procenty";
 "Time format" = "Format czasu";
 "Hide additional information when full" = "Ukryj dodatkowe informacje, gdy bateria jest naładowana";
+"Last charge" = "Ostatnie ładowanie";
 
-// Fans
-"Fans" = "Wentylatory";
+// Bluetooth
+"Battery to show" = "Bateria do wyświetlenia";
 
 // Colors
-"Based on utilization" = "Based on utilization";
-"Based on pressure" = "Based on pressure";
-"System accent" = "System accent";
-"Monochrome accent" = "Monochrome accent";
-"Clear" = "Clear";
-"White" = "White";
-"Black" = "Black";
-"Gray" = "Gray";
-"Second gray" = "Second gray";
-"Dark gray" = "Dark gray";
-"Light gray" = "Light gray";
-"Red" = "Red";
-"Second red" = "Second red";
-"Green" = "Green";
-"Second green" = "Second green";
-"Blue" = "Blue";
-"Second blue" = "Second blue";
-"Yellow" = "Yellow";
-"Second yellow" = "Second yellow";
-"Orange" = "Orange";
-"Second orange" = "Second orange";
-"Purple" = "Purple";
-"Second purple" = "Second purple";
-"Brown" = "Brown";
-"Second brown" = "Second brown";
-"Cyan" = "Cyan";
+"Based on utilization" = "Na podstawie wykorzystania";
+"Based on pressure" = "Na podstawie obciążenia";
+"System accent" = "Akcent systemowy";
+"Monochrome accent" = "Akcent monochromatyczny";
+"Clear" = "Wyczyść";
+"White" = "Biały";
+"Black" = "Czarny";
+"Gray" = "Szary";
+"Second gray" = "Drugi szary";
+"Dark gray" = "Ciemno szary";
+"Light gray" = "Jasno szary";
+"Red" = "Czerwony";
+"Second red" = "Drugi czerwony";
+"Green" = "Zielony";
+"Second green" = "Drugi zielony";
+"Blue" = "Niebieski";
+"Second blue" = "Drugi niebieski";
+"Yellow" = "Żółty";
+"Second yellow" = "Drugi żółty";
+"Orange" = "Pomarańczowy";
+"Second orange" = "Drugi pomarańczowy";
+"Purple" = "Fioletowy";
+"Second purple" = "Drugi fioletowy";
+"Brown" = "Brązowy";
+"Second brown" = "Drugi brązowy";
+"Cyan" = "Cyjan";
 "Magenta" = "Magenta";
-"Pink" = "Pink";
-"Teal" = "Teal";
-"Indigo" = "Indigo";
+"Pink" = "Różowy";
+"Teal" = "Morski";
+"Indigo" = "Indygo";

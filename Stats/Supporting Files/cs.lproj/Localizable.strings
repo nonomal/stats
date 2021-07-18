@@ -9,13 +9,32 @@
 //  Copyright © 2020 Serhiy Mytrovtsiy. All rights reserved.
 //
 
+// Modules
+"CPU" = "CPU";
+"Open CPU settings" = "Open CPU settings";
+"GPU" = "GPU";
+"Open GPU settings" = "Open GPU settings";
+"RAM" = "RAM";
+"Open RAM settings" = "Open RAM settings";
+"Disk" = "Disk";
+"Open Disk settings" = "Open disk settings";
+"Sensors" = "Sensors";
+"Open Sensors settings" = "Open sensors settings";
+"Fans" = "Fans";
+"Open Fans settings" = "Open fans settings";
+"Network" = "Network";
+"Open Network settings" = "Open network settings";
+"Battery" = "Battery";
+"Open Battery settings" = "Open battery settings";
+"Bluetooth" = "Bluetooth";
+"Open Bluetooth settings" = "Open bluetooth settings";
+
 // Words
 "Unknown" = "Neznámý";
 "Version" = "Verze";
 "Processor" = "Procesor";
 "Memory" = "Paměť";
 "Graphics" = "Grafika";
-"Disk" = "Disk";
 "Close" = "Zavřít";
 "Download" = "Stáhnout";
 "Install" = "Instalovat";
@@ -34,6 +53,12 @@
 "Statistics" = "Statistiky";
 "Max" = "Max";
 "Min" = "Min";
+"Reset" = "Reset";
+"Alignment" = "Alignment";
+"Left alignment" = "Left";
+"Center alignment" = "Center";
+"Right alignment" = "Right";
+"Dashboard" = "Dashboard";
 
 // Alerts
 "New version available" = "Nová verze k dispozici";
@@ -47,7 +72,7 @@
 "Support the application" = "Podpořte aplikaci";
 "Close application" = "Zavřít aplikaci";
 "Open application settings" = "Otevřít nastavení aplikace";
-"Open moduleName settings" = "Otevřít nastavení %0";
+"Open dashboard" = "Open dashboard";
 
 // Application settings
 "Update application" = "Aktualizovat aplikaci";
@@ -94,6 +119,7 @@
 "Battery widget" = "Baterie";
 "Text widget" = "Text";
 "Memory widget" = "Paměť";
+"Static width" = "Static width";
 
 // Module Kit
 "Open module settings" = "Otevřít nastavení modulu";
@@ -165,7 +191,6 @@
 "Public IP" = "Veřejná IP";
 "Local IP" = "Místní IP";
 "Interface" = "Rozhraní";
-"Network" = "Síť";
 "Physical address" = "Fyzická adresa";
 "Refresh" = "Obnovit";
 "Click to copy public IP address" = "Klikněte pro zkopírování veřejné IP adresy";
@@ -187,7 +212,6 @@
 "Battery Power" = "Napájení z baterie";
 "Time" = "Čas";
 "Health" = "Zdraví";
-"Battery" = "Baterie";
 "Amperage" = "Proud";
 "Voltage" = "Napětí";
 "Cycles" = "Počet cyklů";
@@ -211,9 +235,10 @@
 "Time and percentage" = "Čas a procenta";
 "Time format" = "Formát času";
 "Hide additional information when full" = "Skrýt další informace při plném nabití";
+"Last charge" = "Poslední poplatek";
 
-// Fans
-"Fans" = "Ventilátory";
+// Bluetooth
+"Battery to show" = "Battery to show";
 
 // Colors
 "Based on utilization" = "Na základě využití";

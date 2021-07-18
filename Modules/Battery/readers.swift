@@ -10,9 +10,7 @@
 //
 
 import Cocoa
-import StatsKit
-import ModuleKit
-import os.log
+import Kit
 
 internal class UsageReader: Reader<Battery_Usage> {
     private var service: io_connect_t = IOServiceGetMatchingService(kIOMasterPortDefault, IOServiceMatching("AppleSmartBattery"))
@@ -56,12 +54,12 @@ internal class UsageReader: Reader<Battery_Usage> {
         let psInfo = IOPSCopyPowerSourcesInfo().takeRetainedValue()
         let psList = IOPSCopyPowerSourcesList(psInfo).takeRetainedValue() as [CFTypeRef]
         
-        if psList.count == 0 {
+        if psList.isEmpty {
             return
         }
         
         for ps in psList {
-            if let list = IOPSGetPowerSourceDescription(psInfo, ps).takeUnretainedValue() as? Dictionary<String, Any> {
+            if let list = IOPSGetPowerSourceDescription(psInfo, ps).takeUnretainedValue() as? [String: Any] {
                 self.usage.powerSource = list[kIOPSPowerSourceStateKey] as? String ?? "AC Power"
                 self.usage.isCharged = list[kIOPSIsChargedKey] as? Bool ?? false
                 self.usage.isCharging = self.getBoolValue("IsCharging" as CFString) ?? false
@@ -72,6 +70,10 @@ internal class UsageReader: Reader<Battery_Usage> {
                 }
                 if let time = list[kIOPSTimeToFullChargeKey] as? Int {
                     self.usage.timeToCharge = Int(time)
+                }
+                
+                if self.usage.powerSource == "AC Power" {
+                    self.usage.timeOnACPower = Date()
                 }
                 
                 self.usage.cycles = self.getIntValue("CycleCount" as CFString) ?? 0
@@ -91,7 +93,7 @@ internal class UsageReader: Reader<Battery_Usage> {
                 
                 var ACwatts: Int = 0
                 if let ACDetails = IOPSCopyExternalPowerAdapterDetails() {
-                    if let ACList = ACDetails.takeRetainedValue() as? Dictionary<String, Any> {
+                    if let ACList = ACDetails.takeRetainedValue() as? [String: Any] {
                         guard let watts = ACList[kIOPSPowerAdapterWattsKey] else {
                             return
                         }
@@ -167,7 +169,7 @@ public class ProcessReader: Reader<[TopProcess]> {
             let output = String(decoding: fileHandle.availableData, as: UTF8.self)
             var processes: [TopProcess] = []
             
-            output.enumerateLines { (line, _) -> () in
+            output.enumerateLines { (line, _) -> Void in
                 if line.matches("^\\d* +.+ \\d*.?\\d*$") {
                     var str = line.trimmingCharacters(in: .whitespaces)
                     
@@ -191,7 +193,7 @@ public class ProcessReader: Reader<[TopProcess]> {
                 }
             }
             
-            if processes.count != 0 {
+            if !processes.isEmpty {
                 self.callback(processes.prefix(self.numberOfProcesses).reversed().reversed())
             }
         }
@@ -207,7 +209,7 @@ public class ProcessReader: Reader<[TopProcess]> {
             do {
                 try self.task.run()
             } catch let error {
-                os_log(.error, log: log, "run Battery process reader %s", "\(error)")
+                debug("run Battery process reader \(error)", log: self.log)
             }
         } else if self.paused {
             self.paused = !self.task.resume()

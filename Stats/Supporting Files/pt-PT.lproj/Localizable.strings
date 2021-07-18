@@ -9,13 +9,32 @@
 //  Copyright © 2020 Rafael Fernandes. All rights reserved.
 //
 
+// Modules
+"CPU" = "CPU";
+"Open CPU settings" = "Open CPU settings";
+"GPU" = "GPU";
+"Open GPU settings" = "Open GPU settings";
+"RAM" = "RAM";
+"Open RAM settings" = "Open RAM settings";
+"Disk" = "Disk";
+"Open Disk settings" = "Open disk settings";
+"Sensors" = "Sensors";
+"Open Sensors settings" = "Open sensors settings";
+"Fans" = "Fans";
+"Open Fans settings" = "Open fans settings";
+"Network" = "Network";
+"Open Network settings" = "Open network settings";
+"Battery" = "Battery";
+"Open Battery settings" = "Open battery settings";
+"Bluetooth" = "Bluetooth";
+"Open Bluetooth settings" = "Open bluetooth settings";
+
 // Words
 "Unknown" = "Desconhecido";
 "Version" = "Versão";
 "Processor" = "Processador";
 "Memory" = "Memória";
 "Graphics" = "Gráficos";
-"Disk" = "Disco";
 "Close" = "Fechar";
 "Download" = "Fazer download";
 "Install" = "Instalar";
@@ -34,6 +53,12 @@
 "Statistics" = "Estatísticas";
 "Max" = "Max";
 "Min" = "Min";
+"Reset" = "Reset";
+"Alignment" = "Alignment";
+"Left alignment" = "Left";
+"Center alignment" = "Center";
+"Right alignment" = "Right";
+"Dashboard" = "Dashboard";
 
 // Alerts
 "New version available" = "Nova versão disponível";
@@ -47,7 +72,7 @@
 "Support the application" = "Apoie o aplicativo";
 "Close application" = "Fechar aplicação";
 "Open application settings" = "Abrir configurações da aplicação";
-"Open moduleName settings" = "Abrir configurações do %0";
+"Open dashboard" = "Open dashboard";
 
 // Application settings
 "Update application" = "Atualizar aplicação";
@@ -94,6 +119,7 @@
 "Battery widget" = "Battery";
 "Text widget" = "Text";
 "Memory widget" = "Memory";
+"Static width" = "Static width";
 
 // Module Kit
 "Open module settings" = "Abrir configurações do módulo";
@@ -165,7 +191,6 @@
 "Public IP" = "IP Público";
 "Local IP" = "IP Local";
 "Interface" = "Interface";
-"Network" = "Rede";
 "Physical address" = "Endereço físico";
 "Refresh" = "Refresh";
 "Click to copy public IP address" = "Clique para copiar o endereço de IP público";
@@ -187,7 +212,6 @@
 "Battery Power" = "Battery Power";
 "Time" = "Tempo";
 "Health" = "Saúde";
-"Battery" = "Bateria";
 "Amperage" = "Amperagem";
 "Voltage" = "Voltagem";
 "Cycles" = "Número de ciclos";
@@ -211,9 +235,10 @@
 "Time and percentage" = "Tempo e porcentagem";
 "Time format" = "Formato de hora";
 "Hide additional information when full" = "Ocultar informações adicionais quando estiver cheia";
+"Last charge" = "Última carga";
 
-// Fans
-"Fans" = "Ventoinhas";
+// Bluetooth
+"Battery to show" = "Battery to show";
 
 // Colors
 "Based on utilization" = "Based on utilization";

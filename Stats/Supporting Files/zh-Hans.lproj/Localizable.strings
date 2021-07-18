@@ -9,13 +9,32 @@
 //  Copyright © 2020 Serhiy Mytrovtsiy. All rights reserved.
 //
 
+// Modules
+"CPU" = "CPU";
+"Open CPU settings" = "Open CPU settings";
+"GPU" = "GPU";
+"Open GPU settings" = "Open GPU settings";
+"RAM" = "RAM";
+"Open RAM settings" = "Open RAM settings";
+"Disk" = "Disk";
+"Open Disk settings" = "Open disk settings";
+"Sensors" = "Sensors";
+"Open Sensors settings" = "Open sensors settings";
+"Fans" = "Fans";
+"Open Fans settings" = "Open fans settings";
+"Network" = "Network";
+"Open Network settings" = "Open network settings";
+"Battery" = "Battery";
+"Open Battery settings" = "Open battery settings";
+"Bluetooth" = "Bluetooth";
+"Open Bluetooth settings" = "Open bluetooth settings";
+
 // Words
 "Unknown" = "未知";
 "Version" = "版本";
 "Processor" = "处理器";
 "Memory" = "内存";
 "Graphics" = "图形卡"; // Use the same translation as the "about this mac"
-"Disk" = "磁盘";
 "Close" = "关闭";
 "Download" = "下载";
 "Install" = "安装";
@@ -34,6 +53,12 @@
 "Statistics" = "统计";
 "Max" = "最大";
 "Min" = "最小";
+"Reset" = "Reset";
+"Alignment" = "Alignment";
+"Left alignment" = "Left";
+"Center alignment" = "Center";
+"Right alignment" = "Right";
+"Dashboard" = "Dashboard";
 
 // Alerts
 "New version available" = "新版本可用";
@@ -47,7 +72,7 @@
 "Support the application" = "支持本应用";
 "Close application" = "关闭应用";
 "Open application settings" = "打开应用设置";
-"Open moduleName settings" = "打开 %0 设置";
+"Open dashboard" = "Open dashboard";
 
 // Application settings
 "Update application" = "更新应用";
@@ -94,6 +119,7 @@
 "Battery widget" = "电池";
 "Text widget" = "文本";
 "Memory widget" = "容量";
+"Static width" = "Static width";
 
 // Module Kit
 "Open module settings" = "打开模块设置";
@@ -165,7 +191,6 @@
 "Public IP" = "公网 IP";
 "Local IP" = "本地 IP";
 "Interface" = "接口";
-"Network" = "网络";
 "Physical address" = "物理地址";
 "Refresh" = "刷新";
 "Click to copy public IP address" = "点击拷贝公网 IP";
@@ -187,7 +212,6 @@
 "Battery Power" = "电池";
 "Time" = "时间";
 "Health" = "健康度";
-"Battery" = "电池";
 "Amperage" = "电流";
 "Voltage" = "电压";
 "Cycles" = "循环数";
@@ -211,38 +235,39 @@
 "Time and percentage" = "时间和百分比";
 "Time format" = "时间格式";
 "Hide additional information when full" = "电池充满后隐藏其他信息";
+"Last charge" = "最后一次充电";
 
-// Fans
-"Fans" = "风扇";
+// Bluetooth
+"Battery to show" = "Battery to show";
 
 // Colors
-"Based on utilization" = "Based on utilization";
-"Based on pressure" = "Based on pressure";
-"System accent" = "System accent";
-"Monochrome accent" = "Monochrome accent";
-"Clear" = "Clear";
-"White" = "White";
-"Black" = "Black";
-"Gray" = "Gray";
-"Second gray" = "Second gray";
-"Dark gray" = "Dark gray";
-"Light gray" = "Light gray";
-"Red" = "Red";
-"Second red" = "Second red";
-"Green" = "Green";
-"Second green" = "Second green";
-"Blue" = "Blue";
-"Second blue" = "Second blue";
-"Yellow" = "Yellow";
-"Second yellow" = "Second yellow";
-"Orange" = "Orange";
-"Second orange" = "Second orange";
-"Purple" = "Purple";
-"Second purple" = "Second purple";
-"Brown" = "Brown";
-"Second brown" = "Second brown";
-"Cyan" = "Cyan";
-"Magenta" = "Magenta";
-"Pink" = "Pink";
-"Teal" = "Teal";
-"Indigo" = "Indigo";
+"Based on utilization" = "基于利用率";
+"Based on pressure" = "基于压力";
+"System accent" = "系统强调色";
+"Monochrome accent" = "黑白";
+"Clear" = "透明";
+"White" = "白色";
+"Black" = "黑色";
+"Gray" = "灰色 1";
+"Second gray" = "灰色 2";
+"Dark gray" = "深灰色";
+"Light gray" = "浅灰色";
+"Red" = "红色 1";
+"Second red" = "红色 2";
+"Green" = "绿色 1";
+"Second green" = "绿色 2";
+"Blue" = "蓝色 1";
+"Second blue" = "蓝色 2";
+"Yellow" = "黄色 1";
+"Second yellow" = "黄色 2";
+"Orange" = "橙色 1";
+"Second orange" = "橙色 2";
+"Purple" = "紫色 1";
+"Second purple" = "紫色 2";
+"Brown" = "棕色 1";
+"Second brown" = "棕色 2";
+"Cyan" = "青色";
+"Magenta" = "洋红色";
+"Pink" = "粉色";
+"Teal" = "蓝绿色";
+"Indigo" = "靛蓝色";

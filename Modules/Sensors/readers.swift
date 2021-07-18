@@ -10,9 +10,7 @@
 //
 
 import Cocoa
-import ModuleKit
-import StatsKit
-import os.log
+import Kit
 import IOKit.hid
 
 internal class SensorsReader: Reader<[Sensor_t]> {
@@ -83,7 +81,6 @@ internal class x86_SensorsReader: SensorsReader {
 
 internal class AppleSilicon_SensorsReader: SensorsReader {
     private let types: [SensorType] = [.temperature, .current, .voltage]
-    private var cache: [String: Sensor_t] = ["1": Sensor_t(key: "test", name: "test", group: .sensor, type: .temperature)]
     
     init() {
         super.init()
@@ -92,29 +89,31 @@ internal class AppleSilicon_SensorsReader: SensorsReader {
             self.fetch(type: type)
         }
         
-        self.list = self.cache.map{ $0.value }.filter({ (s: Sensor_t) -> Bool in
+        self.list = self.list.filter({ (s: Sensor_t) -> Bool in
             switch s.type {
             case .temperature:
-                return s.value < 110
+                return s.value < 110 && s.value >= 0
             case .voltage:
-                return s.value < 300
+                return s.value < 300 && s.value >= 0
             case .current:
-                return s.value < 100
+                return s.value < 100 && s.value >= 0
             default: return true
             }
         })
+        
+        self.list = self.list.sorted { $0.name.lowercased() < $1.name.lowercased() }
     }
     
     public override func read() {
         for type in types {
             self.fetch(type: type)
         }
-        self.callback(self.cache.map{ $0.value })
+        self.callback(self.list)
     }
     
     private func fetch(type: SensorType) {
-        var page: Int = 0
-        var usage: Int = 0
+        var page: Int32 = 0
+        var usage: Int32 = 0
         var eventType: Int32 = kIOHIDEventTypeTemperature
         
         //  usagePage:
@@ -147,43 +146,19 @@ internal class AppleSilicon_SensorsReader: SensorsReader {
         case .fan: break
         }
         
-        guard let client = IOHIDEventSystemClientCreate(kCFAllocatorDefault) else {
-            return
-        }
-        let system: IOHIDEventSystemClient = client.takeRetainedValue()
-        
-        let dict = createDeviceMatchingDictionary(usagePage: page, usage: usage)
-        IOHIDEventSystemClientSetMatching(system, dict)
-        
-        guard let services: CFArray = IOHIDEventSystemClientCopyServices(system) else {
-            return
-        }
-        
-        for i in 0..<CFArrayGetCount(services) {
-            var value = CFArrayGetValueAtIndex(services, i)
-            
-            withUnsafePointer(to: &value) { rawPtr in
-                let service = UnsafeRawPointer(rawPtr).assumingMemoryBound(to: IOHIDServiceClientRef.self)
-                let namePtr: Unmanaged<CFString>? = IOHIDServiceClientCopyProperty(service.pointee, "Product" as CFString)
-                
-                guard let nameCF = namePtr?.takeRetainedValue() else {
-                    return
-                }
-                let name = nameCF as String
-                
-                if let eventPtr: IOHIDEventRef = IOHIDServiceClientCopyEvent(service.pointee, Int64(eventType), 0, 0) {
-                    let value = IOHIDEventGetFloatValue(eventPtr, eventType << 16)
-                    
-                    if self.cache.keys.contains(name) {
-                        self.cache[name]?.value = value
+        if let list = AppleSiliconSensors(page, usage, eventType) {
+            list.forEach { (key, value) in
+                if let name = key as? String, let value = value as? Double {
+                    if let idx = self.list.firstIndex(where: { $0.name == name }) {
+                        self.list[idx].value = value
                     } else {
-                        self.cache[name] = Sensor_t(
+                        self.list.append(Sensor_t(
                             key: name,
                             name: name,
                             value: value,
                             group: .system,
                             type: type
-                        )
+                        ))
                     }
                 }
             }

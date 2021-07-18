@@ -10,11 +10,9 @@
 //
 
 import Cocoa
-import StatsKit
-import ModuleKit
+import Kit
 import SystemConfiguration
 import Reachability
-import os.log
 import CoreWLAN
 
 struct ipResponse: Decodable {
@@ -55,8 +53,8 @@ internal class UsageReader: Reader<Network_Usage> {
         do {
             self.reachability = try Reachability()
             try self.reachability!.startNotifier()
-        } catch let error {
-            os_log(.error, log: log, "initialize Reachability error %s", "\(error)")
+        } catch let err {
+            error("initialize Reachability error \(err)", log: self.log)
         }
         
         self.reachability!.whenReachable = { _ in
@@ -72,6 +70,7 @@ internal class UsageReader: Reader<Network_Usage> {
         }
         
         NotificationCenter.default.addObserver(self, selector: #selector(refreshPublicIP), name: .refreshPublicIP, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(resetTotalNetworkUsage), name: .resetTotalNetworkUsage, object: nil)
     }
     
     public override func read() {
@@ -145,8 +144,8 @@ internal class UsageReader: Reader<Network_Usage> {
         
         do {
             try task.run()
-        } catch let error {
-            os_log(.error, log: log, "read bandwidth from processes %s", "\(error)")
+        } catch let err {
+            error("read bandwidth from processes: \(err)", log: self.log)
             return (0, 0)
         }
         
@@ -162,7 +161,7 @@ internal class UsageReader: Reader<Network_Usage> {
         var totalUpload: Int64 = 0
         var totalDownload: Int64 = 0
         var firstLine = false
-        output.enumerateLines { (line, _) -> () in
+        output.enumerateLines { (line, _) -> Void in
             if !firstLine {
                 firstLine = true
                 return
@@ -241,8 +240,8 @@ internal class UsageReader: Reader<Network_Usage> {
                     self.usage.raddr.v4 = value
                 }
             }
-        } catch let error {
-            os_log(.error, log: log, "get public ipv4 %s", "\(error)")
+        } catch let err {
+            error("get public ipv4: \(err)", log: self.log)
         }
         
         do {
@@ -252,8 +251,8 @@ internal class UsageReader: Reader<Network_Usage> {
                     self.usage.raddr.v6 = value
                 }
             }
-        } catch let error {
-            os_log(.error, log: log, "get public ipv6 %s", "\(error)")
+        } catch let err {
+            error("get public ipv6: \(err)", log: self.log)
         }
     }
     
@@ -276,6 +275,10 @@ internal class UsageReader: Reader<Network_Usage> {
             self.getPublicIP()
         }
     }
+    
+    @objc func resetTotalNetworkUsage() {
+        self.usage.total = (0, 0)
+    }
 }
 
 public class ProcessReader: Reader<[Network_Process]> {
@@ -292,6 +295,7 @@ public class ProcessReader: Reader<[Network_Process]> {
         self.popup = true
     }
     
+    // swiftlint:disable function_body_length
     public override func read() {
         if self.numberOfProcesses == 0 {
             return
@@ -330,7 +334,7 @@ public class ProcessReader: Reader<[Network_Process]> {
         
         var list: [Network_Process] = []
         var firstLine = false
-        output.enumerateLines { (line, _) -> () in
+        output.enumerateLines { (line, _) -> Void in
             if !firstLine {
                 firstLine = true
                 return
@@ -366,7 +370,7 @@ public class ProcessReader: Reader<[Network_Process]> {
         }
         
         var processes: [Network_Process] = []
-        if self.previous.count == 0 {
+        if self.previous.isEmpty {
             self.previous = list
             processes = list
         } else {
@@ -386,7 +390,7 @@ public class ProcessReader: Reader<[Network_Process]> {
                         upload = 0
                     }
                     
-                    processes.append(Network_Process(time: time, name: p.name, pid: p.pid, download: download, upload:  upload, icon: p.icon))
+                    processes.append(Network_Process(time: time, name: p.name, pid: p.pid, download: download, upload: upload, icon: p.icon))
                 }
             }
             self.previous = list
