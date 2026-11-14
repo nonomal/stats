@@ -7,10 +7,9 @@
 //
 
 import Cocoa
-import os.log
 
-import StatsKit
-import ModuleKit
+import Kit
+import UserNotifications
 
 import CPU
 import RAM
@@ -19,92 +18,216 @@ import Net
 import Battery
 import Sensors
 import GPU
-import Fans
+import Bluetooth
+import Clock
+import Remote
 
-let updater = macAppUpdater(user: "exelban", repo: "stats")
+let updater = Updater(github: "exelban/stats", url: "https://api.mac-stats.com/release/latest")
 var modules: [Module] = [
     CPU(),
     GPU(),
     RAM(),
     Disk(),
     Sensors(),
-    Fans(),
     Network(),
     Battery(),
+    Bluetooth(),
+    Clock(),
+    Remote()
 ]
-var log = OSLog(subsystem: Bundle.main.bundleIdentifier!, category: "Stats")
 
-class AppDelegate: NSObject, NSApplicationDelegate, NSUserNotificationCenterDelegate {
-    internal let settingsWindow: SettingsWindow = SettingsWindow()
-    internal let updateNotification = NSUserNotification()
+@main
+class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate {
+    internal var settingsWindow: SettingsWindow?
+    internal var updateWindow: UpdateWindow?
+    internal var setupWindow: SetupWindow?
+    internal var supportWindow: SupportWindow?
     
-    private let updateActivity = NSBackgroundActivityScheduler(identifier: "eu.exelban.Stats.updateCheck")
+    internal var menuBarItem: NSStatusItem? = nil
+    internal var combinedView: CombinedView = CombinedView()
+    internal var modulesMounted: Bool = false
+    
+    internal let updateActivity = NSBackgroundActivityScheduler(identifier: "eu.exelban.Stats.updateCheck")
+    internal let supportActivity = NSBackgroundActivityScheduler(identifier: "eu.exelban.Stats.support")
+    internal let supportRetryActivity = NSBackgroundActivityScheduler(identifier: "eu.exelban.Stats.supportRetry")
+    
+    internal var clickInNotification: Bool = false
+    
+    internal var pauseState: Bool {
+        Store.shared.bool(key: "pause", defaultValue: false)
+    }
+    
+    private var startTS: Date?
+    private var launchStart: Date?
+    
+    static func main() {
+        let launchStart = Date()
+        let app = NSApplication.shared
+        let delegate = AppDelegate()
+        delegate.launchStart = launchStart
+        app.delegate = delegate
+        app.run()
+    }
     
     func applicationDidFinishLaunching(_ aNotification: Notification) {
-        let startingPoint = Date()
+        let startingPoint = self.launchStart ?? Date()
         
+        self.suppressStatusBarTilingConstraintUpdates()
         self.parseArguments()
         self.parseVersion()
-        
-        NSUserNotificationCenter.default.removeAllDeliveredNotifications()
-        NotificationCenter.default.addObserver(self, selector: #selector(updateCron), name: .changeCronInterval, object: nil)
-        
-        modules.forEach{ $0.mount() }
-        
-        self.settingsWindow.setModules()
-        
+        SMCHelper.shared.checkForUpdate()
+        self.setup {
+            modules.reversed().forEach{ $0.mount() }
+            self.modulesMounted = true
+            self.showSettingsIfNoActiveWidgets()
+        }
         self.defaultValues()
-        self.updateCron()
-        os_log(.info, log: log, "Stats started in %.4f seconds", startingPoint.timeIntervalSinceNow * -1)
+        self.icon()
+        
+        NotificationCenter.default.addObserver(self, selector: #selector(listenForAppPause), name: .pause, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(handleToggleSettings), name: .toggleSettings, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(handleRemoteAuthenticated), name: .remoteAuthenticated, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(handleRemoteUpdate), name: .remoteUpdate, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(handlePopupVisibility), name: .popupVisibilityChanged, object: nil)
+        
+        NSEvent.addGlobalMonitorForEvents(matching: [.keyDown, .flagsChanged]) { [weak self] event in
+            self?.handleKeyEvent(event)
+        }
+        NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .flagsChanged]) { [weak self] event in
+            self?.handleKeyEvent(event)
+            return event
+        }
+        
+        info("Stats started in \((startingPoint.timeIntervalSinceNow * -1).rounded(toPlaces: 4)) seconds")
+        self.startTS = Date()
     }
     
     func applicationWillTerminate(_ aNotification: Notification) {
         modules.forEach{ $0.terminate() }
+        DB.shared.flush()
+        SystemStats.shared.terminate()
+    }
+    
+    func applicationDidUpdate(_ notification: Notification) {
+        self.updateDockIcon()
+    }
+    
+    internal func updateDockIcon() {
+        let showDockIcon = Store.shared.bool(key: "dockIcon", defaultValue: false) && NSApp.windows.contains {
+            $0.isMiniaturized || ($0.isVisible && $0.canBecomeMain)
+        }
+        let policy: NSApplication.ActivationPolicy = showDockIcon ? .regular : .accessory
+        if NSApp.activationPolicy() != policy {
+            NSApp.setActivationPolicy(policy)
+        }
+    }
+    
+    deinit {
         NotificationCenter.default.removeObserver(self)
     }
     
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        if flag {
-            self.settingsWindow.makeKeyAndOrderFront(self)
-        } else {
-            self.settingsWindow.setIsVisible(true)
+        if self.clickInNotification {
+            self.clickInNotification = false
+            return true
         }
+        guard let startTS = self.startTS, Date().timeIntervalSince(startTS) > 2 else { return false }
+        
+        let window = self.ensureSettingsWindow()
+        if flag {
+            window.makeKeyAndOrderFront(self)
+        } else {
+            window.setIsVisible(true)
+        }
+        
         return true
     }
     
-    func userNotificationCenter(_ center: NSUserNotificationCenter, didActivate notification: NSUserNotification) {
-        if let uri = notification.userInfo?["url"] as? String {
-            os_log(.debug, log: log, "Downloading new version of app...")
+    @objc private func handleToggleSettings(_ notification: Notification) {
+        let module = notification.userInfo?["module"] as? String
+        self.ensureSettingsWindow().open(module: module)
+    }
+    
+    @objc private func handleRemoteAuthenticated() {
+        DispatchQueue.main.async {
+            self.checkIfShouldShowSupportWindow()
+        }
+    }
+    
+    @objc private func handleRemoteUpdate() {
+        DispatchQueue.main.async {
+            self.checkForNewVersion(silent: true)
+        }
+    }
+    
+    @objc private func handlePopupVisibility(_ notification: Notification) {
+        guard let state = notification.userInfo?["state"] as? Bool, !state else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+            self.tryToShowSupportWindow(interaction: true)
+        }
+    }
+    
+    private func showSettingsIfNoActiveWidgets() {
+        if self.pauseState { return }
+        if Store.shared.bool(key: "CombinedModules", defaultValue: false), CombinedModulesWidget.current != .widgets { return }
+        let hasActive = modules.contains(where: { $0.enabled != false && $0.available != false && !$0.menuBar.widgets.filter({ $0.isActive }).isEmpty })
+        if hasActive { return }
+        self.ensureSettingsWindow().setIsVisible(true)
+    }
+    
+    internal func ensureSettingsWindow() -> SettingsWindow {
+        if let w = self.settingsWindow { return w }
+        let w = SettingsWindow()
+        w.onClose = { [weak self] in
+            self?.settingsWindow = nil
+            self?.tryToShowSupportWindow(interaction: true)
+        }
+        self.settingsWindow = w
+        return w
+    }
+    
+    internal func ensureUpdateWindow() -> UpdateWindow {
+        if let w = self.updateWindow { return w }
+        let w = UpdateWindow()
+        w.onClose = { [weak self] in self?.updateWindow = nil }
+        self.updateWindow = w
+        return w
+    }
+    
+    internal func ensureSetupWindow() -> SetupWindow {
+        if let w = self.setupWindow { return w }
+        let w = SetupWindow()
+        w.onClose = { [weak self] in self?.setupWindow = nil }
+        self.setupWindow = w
+        return w
+    }
+    
+    internal func ensureSupportWindow() -> SupportWindow {
+        if let w = self.supportWindow { return w }
+        let w = SupportWindow()
+        w.onClose = { [weak self] in self?.supportWindow = nil }
+        self.supportWindow = w
+        return w
+    }
+    
+    func userNotificationCenter(_ center: UNUserNotificationCenter,
+                                didReceive response: UNNotificationResponse,
+                                withCompletionHandler completionHandler: @escaping () -> Void) {
+        self.clickInNotification = true
+        
+        if let uri = response.notification.request.content.userInfo["url"] as? String {
+            debug("Downloading new version of app...")
             if let url = URL(string: uri) {
-                updater.download(url, doneHandler: { path in
-                    updater.install(path: path)
+                updater.download(url, completion: { path in
+                    updater.install(path: path) { error in
+                        if let error {
+                            showAlert("Error update Stats", error, .critical)
+                        }
+                    }
                 })
             }
         }
         
-        NSUserNotificationCenter.default.removeDeliveredNotification(self.updateNotification)
-    }
-    
-    @objc private func updateCron() {
-        self.updateActivity.invalidate()
-        self.updateActivity.repeats = true
-        
-        guard let updateInterval = AppUpdateInterval(rawValue: Store.shared.string(key: "update-interval", defaultValue: AppUpdateInterval.atStart.rawValue)) else {
-            return
-        }
-        os_log(.debug, log: log, "Application update interval is '%s'", "\(updateInterval.rawValue)")
-        
-        switch updateInterval {
-        case .oncePerDay: self.updateActivity.interval = 60 * 60 * 24
-        case .oncePerWeek: self.updateActivity.interval = 60 * 60 * 24 * 7
-        case .oncePerMonth: self.updateActivity.interval = 60 * 60 * 24 * 30
-        case .never, .atStart: return
-        default: return
-        }
-        
-        self.updateActivity.schedule { (completion: @escaping NSBackgroundActivityScheduler.CompletionHandler) in
-            self.checkForNewVersion()
-            completion(NSBackgroundActivityScheduler.Result.finished)
-        }
+        completionHandler()
     }
 }

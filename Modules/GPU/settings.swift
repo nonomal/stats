@@ -10,11 +10,32 @@
 //
 
 import Cocoa
-import StatsKit
-import ModuleKit
+import Kit
 
-internal class Settings: NSView, Settings_v {
+var textWidgetHelp = """
+<h2>Description</h2>
+You can use a combination of any of the variables.
+<h3>Examples:</h3>
+<ul>
+<li>$usage - $fps</li>
+<li>GPU: $usage ($temperature)</li>
+<li>Render: $render, Tiler: $tiler</li>
+</ul>
+<h2>Available variables</h2>
+<ul>
+<li><b>$usage</b>: <small>GPU utilization.</small></li>
+<li><b>$render</b>: <small>Renderer utilization.</small></li>
+<li><b>$tiler</b>: <small>Tiler utilization.</small></li>
+<li><b>$ane</b>: <small>Apple Neural Engine utilization.</small></li>
+<li><b>$memory</b>: <small>GPU memory usage.</small></li>
+<li><b>$fps</b>: <small>Frames per second.</small></li>
+</ul>
+"""
+
+internal class Settings: NSStackView, Settings_v {
     private var updateIntervalValue: Int = 1
+    private var updateTopIntervalValue: Int = 1
+    private var numberOfProcesses: Int = 8
     private var selectedGPU: String
     private var showTypeValue: Bool = false
     
@@ -22,26 +43,26 @@ internal class Settings: NSView, Settings_v {
     
     public var selectedGPUHandler: (String) -> Void = {_ in }
     public var callback: (() -> Void) = {}
+    public var callbackWhenUpdateNumberOfProcesses: (() -> Void) = {}
     public var setInterval: ((_ value: Int) -> Void) = {_ in }
+    public var setTopInterval: ((_ value: Int) -> Void) = {_ in }
     
-    private var hyperthreadView: NSView? = nil
     private var button: NSPopUpButton?
     
-    public init(_ title: String) {
-        self.title = title
+    public init(_ module: ModuleType) {
+        self.title = module.stringValue
         self.selectedGPU = Store.shared.string(key: "\(self.title)_gpu", defaultValue: "")
         self.updateIntervalValue = Store.shared.int(key: "\(self.title)_updateInterval", defaultValue: self.updateIntervalValue)
+        self.updateTopIntervalValue = Store.shared.int(key: "\(self.title)_updateTopInterval", defaultValue: self.updateTopIntervalValue)
+        self.numberOfProcesses = Store.shared.int(key: "\(self.title)_processes", defaultValue: self.numberOfProcesses)
         self.showTypeValue = Store.shared.bool(key: "\(self.title)_showType", defaultValue: self.showTypeValue)
         
-        super.init(frame: CGRect(
-            x: 0,
-            y: 0,
-            width: Constants.Settings.width - (Constants.Settings.margin*2),
-            height: 0
-        ))
+        super.init(frame: NSRect(x: 0, y: 0, width: 0, height: 0))
         
         self.wantsLayer = true
-        self.canDrawConcurrently = true
+        self.orientation = .vertical
+        self.distribution = .gravityAreas
+        self.spacing = Constants.Settings.margin
     }
     
     required init?(coder: NSCoder) {
@@ -51,80 +72,62 @@ internal class Settings: NSView, Settings_v {
     public func load(widgets: [widget_t]) {
         self.subviews.forEach{ $0.removeFromSuperview() }
         
-        let rowHeight: CGFloat = 30
-        let num: CGFloat = widgets.filter{ $0 == .mini }.isEmpty ? 2 : 3
-        
-        self.addSubview(SelectTitleRow(
-            frame: NSRect(
-                x: Constants.Settings.margin,
-                y: Constants.Settings.margin + (rowHeight + Constants.Settings.margin) * (num-1),
-                width: self.frame.width - (Constants.Settings.margin*2),
-                height: rowHeight
-            ),
-            title: LocalizedString("Update interval"),
-            action: #selector(changeUpdateInterval),
-            items: ReaderUpdateIntervals.map{ "\($0) sec" },
-            selected: "\(self.updateIntervalValue) sec"
-        ))
-        
-        if !widgets.filter({ $0 == .mini }).isEmpty {
-            self.addSubview(ToggleTitleRow(
-                frame: NSRect(
-                    x: Constants.Settings.margin,
-                    y: Constants.Settings.margin + (rowHeight + Constants.Settings.margin) * 1,
-                    width: self.frame.width - (Constants.Settings.margin*2),
-                    height: rowHeight
-                ),
-                title: LocalizedString("Show GPU type"),
-                action: #selector(toggleShowType),
-                state: self.showTypeValue
+        var rows: [PreferencesRow] = [
+            PreferencesRow(localizedString("Update interval"), component: selectView(
+                action: #selector(self.changeUpdateInterval),
+                items: ReaderUpdateIntervals,
+                selected: "\(self.updateIntervalValue)"
             ))
+        ]
+        #if arch(arm64)
+        rows.append(PreferencesRow(localizedString("Update interval for top processes"), component: selectView(
+            action: #selector(self.changeUpdateTopInterval),
+            items: ReaderUpdateIntervals,
+            selected: "\(self.updateTopIntervalValue)"
+        )))
+        #endif
+        self.addArrangedSubview(PreferencesSection(rows))
+        
+        #if arch(arm64)
+        self.addArrangedSubview(PreferencesSection([
+            PreferencesRow(localizedString("Number of top processes"), component: selectView(
+                action: #selector(self.changeNumberOfProcesses),
+                items: NumbersOfProcesses.map{ KeyValue_t(key: "\($0)", value: "\($0)") },
+                selected: "\(self.numberOfProcesses)"
+            ))
+        ]))
+        #endif
+        
+        #if arch(x86_64)
+        if !widgets.filter({ $0 == .mini }).isEmpty {
+            self.addArrangedSubview(PreferencesSection([
+                PreferencesRow(localizedString("Show GPU type"), component: switchView(
+                    action: #selector(self.toggleShowType),
+                    state: self.showTypeValue
+                ))
+            ]))
         }
+        #endif
         
-        self.addGPUSelector(frame: NSRect(
-            x: Constants.Settings.margin,
-            y: Constants.Settings.margin + (rowHeight + Constants.Settings.margin) * 0,
-            width: self.frame.width - (Constants.Settings.margin*2),
-            height: rowHeight
-        ))
-        
-        self.setFrameSize(NSSize(width: self.frame.width, height: (rowHeight*num) + (Constants.Settings.margin*(num+1))))
-    }
-    
-    private func addGPUSelector(frame: NSRect) {
-        let view: NSGridView = NSGridView(frame: frame)
-        view.yPlacement = .center
-        
-        let title: NSTextField = LabelField(frame: NSRect(x: 0, y: 0, width: 100, height: 17), LocalizedString("GPU to show"))
-        title.font = NSFont.systemFont(ofSize: 13, weight: .light)
-        title.textColor = .textColor
-        
-        let container: NSGridView = NSGridView(frame: NSRect(x: 0, y: 0, width: view.frame.width - 100, height: 26))
-        container.yPlacement = .center
-        container.xPlacement = .trailing
-        let button = NSPopUpButton(frame: NSRect(x: 0, y: 0, width: 200, height: 30))
-        button.target = self
-        button.action = #selector(self.handleSelection)
-        self.button = button
-        container.addRow(with: [button])
-        
-        view.addRow(with: [title, container])
-        
-        self.addSubview(view)
+        self.button = selectView(
+            action: #selector(self.handleSelection),
+            items: [],
+            selected: ""
+        )
+        self.addArrangedSubview(PreferencesSection([
+            PreferencesRow(localizedString("GPU to show"), component: self.button!)
+        ]))
     }
     
     internal func setList(_ gpus: GPUs) {
         var list: [KeyValue_t] = [
             KeyValue_t(key: "automatic", value: "Automatic"),
-            KeyValue_t(key: "separator", value: "separator"),
+            KeyValue_t(key: "separator", value: "separator")
         ]
         gpus.active().forEach{ list.append(KeyValue_t(key: $0.model, value: $0.model)) }
         
         DispatchQueue.main.async(execute: {
-            guard let button = self.button else {
-                return
-            }
-            
+            guard let button = self.button else { return }
             if button.menu?.items.count != list.count {
                 let menu = NSMenu()
                 
@@ -132,7 +135,7 @@ internal class Settings: NSView, Settings_v {
                     if item.key.contains("separator") {
                         menu.addItem(NSMenuItem.separator())
                     } else {
-                        let interfaceMenu = NSMenuItem(title: LocalizedString(item.value), action: nil, keyEquivalent: "")
+                        let interfaceMenu = NSMenuItem(title: localizedString(item.value), action: nil, keyEquivalent: "")
                         interfaceMenu.representedObject = item.key
                         menu.addItem(interfaceMenu)
                         if self.selectedGPU == item.key {
@@ -148,32 +151,31 @@ internal class Settings: NSView, Settings_v {
     }
     
     @objc private func changeUpdateInterval(_ sender: NSMenuItem) {
-        if let value = Int(sender.title.replacingOccurrences(of: " sec", with: "")) {
-            self.updateIntervalValue = value
-            Store.shared.set(key: "\(self.title)_updateInterval", value: value)
-            self.setInterval(value)
-        }
+        guard let key = sender.representedObject as? String, let value = Int(key) else { return }
+        self.updateIntervalValue = value
+        Store.shared.set(key: "\(self.title)_updateInterval", value: value)
+        self.setInterval(value)
     }
-    
     @objc private func handleSelection(_ sender: NSMenuItem) {
-        guard let key = sender.representedObject as? String else {
-            return
-        }
-        
+        guard let key = sender.representedObject as? String else { return }
         self.selectedGPU = key
         Store.shared.set(key: "\(self.title)_gpu", value: key)
         self.selectedGPUHandler(key)
     }
-    
-    @objc func toggleShowType(_ sender: NSControl) {
-        var state: NSControl.StateValue? = nil
-        if #available(OSX 10.15, *) {
-            state = sender is NSSwitch ? (sender as! NSSwitch).state: nil
-        } else {
-            state = sender is NSButton ? (sender as! NSButton).state: nil
-        }
-        
-        self.showTypeValue = state! == .on ? true : false
+    @objc private func changeUpdateTopInterval(_ sender: NSMenuItem) {
+        guard let key = sender.representedObject as? String, let value = Int(key) else { return }
+        self.updateTopIntervalValue = value
+        Store.shared.set(key: "\(self.title)_updateTopInterval", value: value)
+        self.setTopInterval(value)
+    }
+    @objc private func changeNumberOfProcesses(_ sender: NSMenuItem) {
+        guard let key = sender.representedObject as? String, let value = Int(key) else { return }
+        self.numberOfProcesses = value
+        Store.shared.set(key: "\(self.title)_processes", value: value)
+        self.callbackWhenUpdateNumberOfProcesses()
+    }
+    @objc private func toggleShowType(_ sender: NSControl) {
+        self.showTypeValue = controlState(sender)
         Store.shared.set(key: "\(self.title)_showType", value: self.showTypeValue)
         self.callback()
     }

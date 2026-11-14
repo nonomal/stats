@@ -1,36 +1,33 @@
-name: Build the application
+name: build
 
 on:
   push:
     branches:
       - master
+  pull_request:
+    branches:
+      - master
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
     runs-on: macos-latest
 
     steps:
-      - uses: actions/checkout@master
-
-      - name: Fetch dependencies from cache
-        id: cache
-        uses: actions/cache@v2
+      - uses: actions/checkout@v7
         with:
-          path: Carthage
-          key: ${{ runner.os }}-carthage-${{ hashFiles('**/Cartfile.resolved') }}
-          restore-keys: |
-            ${{ runner.os }}-carthage-
+          fetch-depth: 0
 
-      - name: Install carthage dependencies
-        if: steps.cache.outputs.cache-hit != 'true'
-        run: carthage update --platform macOS
-
-      - name: Build application
-        if: success()
+      - name: Check release tag
+        if: github.event_name == 'push'
+        id: release
         run: |
-          xcodebuild \
-            -scheme Stats \
-            -destination 'platform=OS X,arch=x86_64' \
-            -configuration Release \
-            CODE_SIGN_IDENTITY="" \
-            CODE_SIGNING_REQUIRED=NO
+          if [ -n "$(git tag --points-at HEAD --list 'v*')" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - run: xcodebuild -scheme Stats -destination 'platform=macOS' -configuration Release archive CODE_SIGNING_ALLOWED=NO
+        if: steps.release.outputs.skip != 'true'

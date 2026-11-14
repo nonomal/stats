@@ -10,89 +10,299 @@
 //
 
 import Cocoa
-import StatsKit
-import os.log
+import Kit
 
-class ApplicationSettings: NSScrollView {
+class ApplicationSettings: NSStackView {
     private var updateIntervalValue: String {
-        get {
-            return Store.shared.string(key: "update-interval", defaultValue: AppUpdateInterval.atStart.rawValue)
-        }
+        Store.shared.string(key: "update-interval", defaultValue: AppUpdateInterval.silent.rawValue)
     }
     
     private var temperatureUnitsValue: String {
+        get { Store.shared.string(key: "temperature_units", defaultValue: "system") }
+        set { Store.shared.set(key: "temperature_units", value: newValue) }
+    }
+    
+    private var combinedModulesState: Bool {
+        get { Store.shared.bool(key: "CombinedModules", defaultValue: false) }
+        set { Store.shared.set(key: "CombinedModules", value: newValue) }
+    }
+    private var combinedModulesSpacing: String {
+        get { Store.shared.string(key: "CombinedModules_spacing", defaultValue: "none") }
+        set { Store.shared.set(key: "CombinedModules_spacing", value: newValue) }
+    }
+    private var combinedModulesSeparator: Bool {
+        get { Store.shared.bool(key: "CombinedModules_separator", defaultValue: false) }
+        set { Store.shared.set(key: "CombinedModules_separator", value: newValue) }
+    }
+    private var combinedModulesPopup: Bool {
+        get { Store.shared.bool(key: "CombinedModules_popup", defaultValue: true) }
+        set { Store.shared.set(key: "CombinedModules_popup", value: newValue) }
+    }
+    private var combinedModulesAlternateDetails: Bool {
+        get { Store.shared.bool(key: "CombinedModules_alternateDetails", defaultValue: true) }
+        set { Store.shared.set(key: "CombinedModules_alternateDetails", value: newValue) }
+    }
+    private var combinedModulesModifierKeys: [UInt16] {
+        get { Store.shared.array(key: "CombinedModules_modifierKeys", defaultValue: [58]) as? [UInt16] ?? [58] }
+        set { Store.shared.set(key: "CombinedModules_modifierKeys", value: newValue) }
+    }
+    
+    private var systemWidgetsUpdatesState: Bool {
         get {
-            return Store.shared.string(key: "temperature_units", defaultValue: "system")
+            let userDefaults = UserDefaults(suiteName: "\(Bundle.main.object(forInfoDictionaryKey: "TeamId") as! String).eu.exelban.Stats.widgets")
+            return userDefaults?.bool(forKey: "systemWidgetsUpdates_state") ?? false
         }
         set {
-            Store.shared.set(key: "temperature_units", value: newValue)
+            let userDefaults = UserDefaults(suiteName: "\(Bundle.main.object(forInfoDictionaryKey: "TeamId") as! String).eu.exelban.Stats.widgets")
+            userDefaults?.set(newValue, forKey: "systemWidgetsUpdates_state")
         }
     }
     
-    private var updateButton: NSButton? = nil
-    private let updateWindow: UpdateWindow = UpdateWindow()
+    private var keepMenuBarPosition: Bool {
+        get { Store.shared.bool(key: "keep_menubar_positions", defaultValue: false) }
+        set { Store.shared.set(key: "keep_menubar_positions", value: newValue) }
+    }
+    
+    private var updateSelector: NSPopUpButton?
+    private var startAtLoginBtn: NSSwitch?
+    private var remoteControlBtn: NSSwitch?
+    private var remoteUpdatesBtn: NSSwitch?
+    
+    private var combinedModulesView: PreferencesSection?
+    private var fanHelperView: PreferencesSection?
+    private var remoteView: PreferencesSection?
+    
+    private var updateWindow: UpdateWindow?
+    private let moduleSelector: ModuleSelectorView = ModuleSelectorView()
+    
+    private var CPUeButton: NSButton?
+    private var CPUpButton: NSButton?
+    private var CPUsButton: NSButton?
+    private var GPUButton: NSButton?
+    
+    private var CPUeTest: CPUStressTest = CPUStressTest(type: .efficiency)
+    private var CPUpTest: CPUStressTest = CPUStressTest(type: .performance)
+    private var CPUsTest: CPUStressTest = CPUStressTest(type: .super)
+    private var GPUTest: GPUStressTest? = GPUStressTest()
+    
+    private var planField: NSTextField?
     
     init() {
-        super.init(frame: NSRect(
-            x: 0,
-            y: 0,
-            width: 540,
-            height: 480
-        ))
+        super.init(frame: NSRect(x: 0, y: 0, width: Constants.Settings.width, height: Constants.Settings.height))
+        self.translatesAutoresizingMaskIntoConstraints = false
         
-        self.drawsBackground = false
-        self.borderType = .noBorder
-        self.hasVerticalScroller = true
-        self.hasHorizontalScroller = false
-        self.autohidesScrollers = true
-        self.horizontalScrollElasticity = .none
-        self.automaticallyAdjustsContentInsets = false
+        let scrollView = ScrollableStackView(orientation: .vertical)
+        scrollView.stackView.edgeInsets = NSEdgeInsets(
+            top: 0,
+            left: Constants.Settings.margin,
+            bottom: Constants.Settings.margin,
+            right: Constants.Settings.margin
+        )
+        scrollView.stackView.spacing = Constants.Settings.margin
         
-        let versionsView = self.versions()
-        let settingsView = self.settings()
+        scrollView.stackView.addArrangedSubview(self.informationView())
         
-        let grid: NSGridView = NSGridView(frame: NSRect(
-            x: 0,
-            y: 0,
-            width: self.frame.width,
-            height: versionsView.frame.height + settingsView.frame.height
-        ))
-        grid.rowSpacing = 0
-        grid.yPlacement = .fill
+        self.updateSelector = selectView(
+            action: #selector(self.toggleUpdateInterval),
+            items: AppUpdateIntervals,
+            selected: self.updateIntervalValue
+        )
+        self.startAtLoginBtn = switchView(
+            action: #selector(self.toggleLaunchAtLogin),
+            state: LaunchAtLogin.isEnabled
+        )
         
-        let separator = NSBox()
-        separator.boxType = .separator
+        scrollView.stackView.addArrangedSubview(PreferencesSection([
+            PreferencesRow(localizedString("Check for updates"), component: self.updateSelector!),
+            PreferencesRow(localizedString("Temperature"), component: selectView(
+                action: #selector(self.toggleTemperatureUnits),
+                items: TemperatureUnits,
+                selected: self.temperatureUnitsValue
+            )),
+            PreferencesRow(localizedString("Show icon in dock"), component: switchView(
+                action: #selector(self.toggleDock),
+                state: Store.shared.bool(key: "dockIcon", defaultValue: false)
+            )),
+            PreferencesRow(localizedString("Start at login"), component: self.startAtLoginBtn!),
+            PreferencesRow(localizedString("Keep the menubar items position"), component: switchView(
+                action: #selector(self.toggleMenuBarPosition),
+                state: self.keepMenuBarPosition
+            )),
+            PreferencesRow("macOS widgets", component: switchView(
+                action: #selector(self.toggleSystemWidgetsUpdatesState),
+                state: self.systemWidgetsUpdatesState
+            ))
+        ]))
         
-        grid.addRow(with: [versionsView])
-        grid.addRow(with: [separator])
-        grid.addRow(with: [settingsView])
+        self.combinedModulesView = PreferencesSection([
+            PreferencesRow(localizedString("Combined modules"), component: switchView(
+                action: #selector(self.toggleCombinedModules),
+                state: self.combinedModulesState
+            )),
+            PreferencesRow(localizedString("Menu bar"), component: selectView(
+                action: #selector(self.toggleCombinedModulesWidget),
+                items: CombinedModulesWidget.all,
+                selected: CombinedModulesWidget.current.rawValue
+            )),
+            PreferencesRow(component: self.moduleSelector),
+            PreferencesRow(localizedString("Spacing"), component: selectView(
+                action: #selector(self.toggleCombinedModulesSpacing),
+                items: CombinedModulesSpacings,
+                selected: self.combinedModulesSpacing
+            )),
+            PreferencesRow(localizedString("Separator"), component: switchView(
+                action: #selector(self.toggleCombinedModulesSeparator),
+                state: self.combinedModulesSeparator
+            )),
+            PreferencesRow(localizedString("Combined details"), component: switchView(
+                action: #selector(self.toggleCombinedModulesPopup),
+                state: self.combinedModulesPopup
+            )),
+            PreferencesRow(localizedString("Alternate details on click"), component: switchView(
+                action: #selector(self.toggleCombinedModulesAlternateDetails),
+                state: self.combinedModulesAlternateDetails
+            )),
+            PreferencesRow(localizedString("Keyboard shortcut"), localizedString("Hold Option or Shift, or both."), component: KeyboardShartcutView(
+                callback: self.setCombinedModulesModifierKeys,
+                value: self.combinedModulesModifierKeys,
+                modifierKeys: [58, 60]
+            ))
+        ])
+        scrollView.stackView.addArrangedSubview(self.combinedModulesView!)
+        self.updateCombinedModulesSettings()
         
-        grid.row(at: 0).height = versionsView.frame.height
-        grid.row(at: 2).height = settingsView.frame.height
-        
-        self.documentView = grid
-        if let documentView = self.documentView {
-            documentView.scroll(NSPoint(x: 0, y: documentView.bounds.size.height))
+        self.remoteControlBtn = switchView(
+            action: #selector(self.toggleRemoteControlState),
+            state: SystemStats.shared.control
+        )
+        self.remoteUpdatesBtn = switchView(
+            action: #selector(self.toggleRemoteUpdateState),
+            state: SystemStats.shared.update
+        )
+        self.planField = textView(SystemStats.shared.plan?.rawValue.capitalized ?? "Free")
+        self.remoteView = PreferencesSection(title: "System Stats", [
+            PreferencesRow(localizedString("Authorization"), component: buttonView(#selector(self.loginToRemote), text: localizedString("Sign in"))),
+            PreferencesRow(localizedString("Identificator"), component: textView(SystemStats.shared.id.uuidString)),
+            PreferencesRow(localizedString("Plan"), component: self.planField!),
+            PreferencesRow(localizedString("Monitoring"), component: switchView(
+                action: #selector(self.toggleRemoteMonitoringState),
+                state: SystemStats.shared.monitoring
+            )),
+            PreferencesRow(id: "monitoring_modules", component: buttonView(
+                #selector(self.selectRemoteMonitoringModules), text: localizedString("Modules")
+            )),
+            PreferencesRow(localizedString("Control"), component: self.remoteControlBtn!),
+            PreferencesRow(localizedString("Update"), component: self.remoteUpdatesBtn!),
+            PreferencesRow(component: buttonView(#selector(self.logoutFromRemote), text: localizedString("Sign out"))),
+            PreferencesRow(component: buttonView(#selector(self.deregisterFromRemote), text: localizedString("Deregister")))
+        ])
+        scrollView.stackView.addArrangedSubview(self.remoteView!)
+        for row in 1...8 {
+            self.remoteView?.setRowVisibility(row, newState: false)
         }
+        
+        scrollView.stackView.addArrangedSubview(PreferencesSection(title: localizedString("Settings"), [
+            PreferencesRow(
+                localizedString("Export settings"),
+                component: buttonView(#selector(self.exportSettings), text: localizedString("Save"))
+            ),
+            PreferencesRow(
+                localizedString("Import settings"),
+                component: buttonView(#selector(self.importSettings), text: localizedString("Choose file"))
+            ),
+            PreferencesRow(
+                localizedString("Reset settings"),
+                component: buttonView(#selector(self.resetSettings), text: localizedString("Reset"))
+            )
+        ]))
+        
+        self.fanHelperView = PreferencesSection([
+            PreferencesRow(
+                localizedString("Uninstall fan helper"),
+                component: buttonView(#selector(self.uninstallHelper), text: localizedString("Uninstall"))
+            )
+        ])
+        scrollView.stackView.addArrangedSubview(self.fanHelperView!)
+        
+        self.addArrangedSubview(scrollView)
+        
+        let CPUeButton = buttonView(#selector(self.toggleCPUeStressTest), text: localizedString("Run"))
+        let CPUpButton = buttonView(#selector(self.toggleCPUpStressTest), text: localizedString("Run"))
+        let CPUsButton = buttonView(#selector(self.toggleCPUsStressTest), text: localizedString("Run"))
+        let GPUButton = buttonView(#selector(self.toggleGPUStressTest), text: localizedString("Run"))
+        
+        self.CPUeButton = CPUeButton
+        self.CPUpButton = CPUpButton
+        self.CPUsButton = CPUsButton
+        self.GPUButton = GPUButton
+        
+        let cpu = SystemKit.shared.device.info.cpu
+        var tests: [PreferencesRow] = []
+        if (cpu?.eCores ?? 0) > 0 {
+            tests.append(PreferencesRow(localizedString("Efficiency cores"), component: CPUeButton))
+        }
+        if (cpu?.pCores ?? 1) > 0 {
+            tests.append(PreferencesRow(localizedString("Performance cores"), component: CPUpButton))
+        }
+        if (cpu?.sCores ?? 0) > 0 {
+            tests.append(PreferencesRow(localizedString("Super cores"), component: CPUsButton))
+        }
+        if self.GPUTest != nil {
+            tests.append(PreferencesRow(localizedString("GPU"), component: GPUButton))
+        }
+        
+        #if arch(arm64)
+        scrollView.stackView.addArrangedSubview(PreferencesSection(title: localizedString("Stress tests"), tests))
+        #endif
+        
+        NotificationCenter.default.addObserver(self, selector: #selector(self.toggleUninstallHelperButton), name: .fanHelperState, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(self.handleRemoteState), name: .remoteState, object: nil)
     }
     
-    required public init?(coder: NSCoder) {
+    required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
     
-    private func versions() -> NSView {
-        let view: NSView = NSView(frame: NSRect(x: 0, y: 0, width: self.frame.width, height: 280))
+    deinit {
+        NotificationCenter.default.removeObserver(self, name: .fanHelperState, object: nil)
+        NotificationCenter.default.removeObserver(self, name: .remoteState, object: nil)
+    }
+    
+    internal func viewWillAppear() {
+        self.startAtLoginBtn?.state = LaunchAtLogin.isEnabled ? .on : .off
+        self.remoteControlBtn?.state = SystemStats.shared.control ? .on : .off
         
-        let h: CGFloat = 120+60+18
-        let container: NSGridView = NSGridView(frame: NSRect(x: 0, y: (view.frame.height-h)/2, width: self.frame.width, height: h))
+        self.planField?.stringValue = SystemStats.shared.plan?.rawValue.capitalized ?? "Free"
+        self.setRemoteSettings(SystemStats.shared.isAuthorized)
+        
+        var idx = self.updateSelector?.indexOfSelectedItem ?? 0
+        if let items = self.updateSelector?.menu?.items {
+            for (i, item) in items.enumerated() {
+                if let obj = item.representedObject as? String, obj == self.updateIntervalValue {
+                    idx = i
+                }
+            }
+        }
+        self.updateSelector?.selectItem(at: idx)
+    }
+    
+    private func informationView() -> NSView {
+        let view = NSStackView()
+        view.heightAnchor.constraint(equalToConstant: 220).isActive = true
+        view.orientation = .vertical
+        view.distribution = .fill
+        view.alignment = .centerY
+        view.spacing = 0
+        
+        let container: NSGridView = NSGridView()
+        container.heightAnchor.constraint(equalToConstant: 180).isActive = true
         container.rowSpacing = 0
         container.yPlacement = .center
         container.xPlacement = .center
         
-        let iconView: NSImageView = NSImageView(image: NSImage(named: NSImage.Name("AppIcon"))!)
-        iconView.frame = NSRect(x: (view.frame.width - 50)/2, y: 0, width: 50, height: 50)
+        let iconView: NSImageView = NSImageView(image: NSImage(named: NSImage.Name("Stats"))!)
         
-        let statsName: NSTextField = TextView(frame: NSRect(x: 0, y: 20, width: view.frame.width, height: 22))
+        let statsName: NSTextField = TextView(frame: NSRect(x: 0, y: 0, width: view.frame.width, height: 22))
         statsName.alignment = .center
         statsName.font = NSFont.systemFont(ofSize: 20, weight: .regular)
         statsName.stringValue = "Stats"
@@ -104,216 +314,496 @@ class ApplicationSettings: NSScrollView {
         let statsVersion: NSTextField = TextView(frame: NSRect(x: 0, y: 0, width: view.frame.width, height: 16))
         statsVersion.alignment = .center
         statsVersion.font = NSFont.systemFont(ofSize: 12, weight: .regular)
-        statsVersion.stringValue = "\(LocalizedString("Version")) \(versionNumber)"
+        statsVersion.stringValue = "\(localizedString("Version")) \(versionNumber)"
         statsVersion.isSelectable = true
-        statsVersion.toolTip = "Build number: \(buildNumber)"
+        statsVersion.toolTip = "\(localizedString("Build number")) \(buildNumber)"
         
-        let button: NSButton = NSButton(frame: NSRect(x: (view.frame.width - 160)/2, y: 0, width: 160, height: 30))
-        button.title = LocalizedString("Check for update")
-        button.bezelStyle = .rounded
-        button.target = self
-        button.action = #selector(updateAction)
-        self.updateButton = button
+        let updateButton: NSButton = NSButton()
+        updateButton.title = localizedString("Check for update")
+        updateButton.bezelStyle = .rounded
+        updateButton.target = self
+        updateButton.action = #selector(self.updateAction)
         
         container.addRow(with: [iconView])
         container.addRow(with: [statsName])
         container.addRow(with: [statsVersion])
-        container.addRow(with: [button])
+        container.addRow(with: [updateButton])
         
-        container.column(at: 0).width = self.frame.width
         container.row(at: 1).height = 22
         container.row(at: 2).height = 20
         container.row(at: 3).height = 30
         
-        view.addSubview(container)
-        return view
-    }
-    
-    private func settings() -> NSView {
-        let view: NSView = NSView(frame: NSRect(x: 0, y: 0, width: self.frame.width, height: 0))
-        
-        let grid: NSGridView = NSGridView(frame: NSRect(x: 0, y: 0, width: view.frame.width, height: 0))
-        grid.rowSpacing = 10
-        grid.columnSpacing = 20
-        grid.xPlacement = .trailing
-        grid.rowAlignment = .firstBaseline
-        grid.translatesAutoresizingMaskIntoConstraints = false
-        
-        let separator = NSBox()
-        separator.boxType = .separator
-        
-        grid.addRow(with: self.updates())
-        grid.addRow(with: self.temperature())
-        grid.addRow(with: self.dockIcon())
-        grid.addRow(with: self.startAtLogin())
-        
-        view.addSubview(grid)
-        
-        var height: CGFloat = (CGFloat(grid.numberOfRows)-2) * grid.rowSpacing
-        for i in 0..<grid.numberOfRows {
-            let row = grid.row(at: i)
-            for a in 0..<row.numberOfCells {
-                if let contentView = row.cell(at: a).contentView {
-                    height += contentView.frame.height
-                }
-            }
-        }
-        view.setFrameSize(NSSize(width: view.frame.width, height: max(200, height)))
-        
-        NSLayoutConstraint.activate([
-            grid.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            grid.centerYAnchor.constraint(equalTo: view.centerYAnchor),
-        ])
+        view.addArrangedSubview(container)
         
         return view
     }
     
-    // MARK: - Views
+    // MARK: - actions
     
-    private func updates() -> [NSView] {
-        return [
-            self.titleView(LocalizedString("Check for updates")),
-            SelectView(
-                action: #selector(self.toggleUpdateInterval),
-                items: AppUpdateIntervals,
-                selected: self.updateIntervalValue
-            )
-        ]
-    }
-    
-    private func temperature() -> [NSView] {
-        return [
-            self.titleView(LocalizedString("Temperature")),
-            SelectView(
-                action: #selector(self.toggleTemperatureUnits),
-                items: TemperatureUnits,
-                selected: self.temperatureUnitsValue
-            )
-        ]
-    }
-    
-    private func dockIcon() -> [NSView] {
-        return [
-            self.titleView(LocalizedString("Show icon in dock")),
-            self.toggleView(
-                action: #selector(self.toggleDock),
-                state: Store.shared.bool(key: "dockIcon", defaultValue: false)
-            )
-        ]
-    }
-    
-    private func startAtLogin() -> [NSView] {
-        return [
-            self.titleView(LocalizedString("Start at login")),
-            self.toggleView(
-                action: #selector(self.toggleLaunchAtLogin),
-                state: LaunchAtLogin.isEnabled
-            )
-        ]
-    }
-    
-    // MARK: - helpers
-    
-    private func titleView(_ value: String) -> NSTextField {
-        let field: NSTextField = TextView(frame: NSRect(x: 0, y: 0, width: 120, height: 17))
-        field.font = NSFont.systemFont(ofSize: 13, weight: .regular)
-        field.textColor = .secondaryLabelColor
-        field.stringValue = value
-        
-        return field
-    }
-    
-    private func toggleView(action: Selector, state: Bool) -> NSView {
-        let state: NSControl.StateValue = state ? .on : .off
-        var toggle: NSControl = NSControl()
-        
-        if #available(OSX 11.0, *) {
-            let switchButton = NSSwitch(frame: NSRect(x: 0, y: 0, width: 50, height: 20))
-            switchButton.state = state
-            switchButton.action = action
-            switchButton.target = self
-            
-            toggle = switchButton
-        } else {
-            let button: NSButton = NSButton(frame: NSRect(x: 0, y: 0, width: 30, height: 20))
-            button.setButtonType(.switch)
-            button.state = state
-            button.title = ""
-            button.action = action
-            button.isBordered = false
-            button.isTransparent = true
-            button.target = self
-            
-            toggle = button
-        }
-        
-        return toggle
-    }
-    
-    @objc func updateAction(_ sender: NSObject) {
-        updater.check() { result, error in
+    @objc private func updateAction() {
+        updater.check(force: true, completion: { result, error in
             if error != nil {
-                os_log(.error, log: log, "error updater.check(): %s", "\(error!.localizedDescription)")
+                debug("error updater.check(): \(error!.localizedDescription)")
                 return
             }
             
-            guard error == nil, let version: version_s = result else {
-                os_log(.error, log: log, "download error(): %s", "\(error!.localizedDescription)")
+            guard let version: version_s = result else {
+                debug("download error(): no version found")
                 return
             }
             
             DispatchQueue.main.async(execute: {
-                self.updateWindow.open(version)
+                if self.updateWindow == nil {
+                    let w = UpdateWindow()
+                    w.onClose = { [weak self = self] in self?.updateWindow = nil }
+                    self.updateWindow = w
+                }
+                self.updateWindow?.open(version, settingButton: true)
                 return
             })
-        }
+        })
     }
     
     @objc private func toggleUpdateInterval(_ sender: NSMenuItem) {
-        guard let key = sender.representedObject as? String else {
-            return
-        }
-        
+        guard let key = sender.representedObject as? String else { return }
         Store.shared.set(key: "update-interval", value: key)
-        NotificationCenter.default.post(name: .changeCronInterval, object: nil, userInfo: nil)
     }
     
     @objc private func toggleTemperatureUnits(_ sender: NSMenuItem) {
-        guard let key = sender.representedObject as? String else {
-            return
-        }
+        guard let key = sender.representedObject as? String else { return }
         self.temperatureUnitsValue = key
     }
     
-    @objc func toggleDock(_ sender: NSControl) {
-        var state: NSControl.StateValue? = nil
-        if #available(OSX 11.0, *) {
-            state = sender is NSSwitch ? (sender as! NSSwitch).state: nil
-        } else {
-            state = sender is NSButton ? (sender as! NSButton).state: nil
-        }
-        
-        if state != nil {
-            Store.shared.set(key: "dockIcon", value: state! == NSControl.StateValue.on)
-        }
-        let dockIconStatus = state == NSControl.StateValue.on ? NSApplication.ActivationPolicy.regular : NSApplication.ActivationPolicy.accessory
-        NSApp.setActivationPolicy(dockIconStatus)
+    @objc private func toggleDock(_ sender: NSButton) {
+        let state = sender.state
+        Store.shared.set(key: "dockIcon", value: state == NSControl.StateValue.on)
+        NSApp.updateWindows()
         if state == .off {
             NSApplication.shared.activate(ignoringOtherApps: true)
         }
     }
     
-    @objc func toggleLaunchAtLogin(_ sender: NSControl) {
-        var state: NSControl.StateValue? = nil
-        if #available(OSX 11.0, *) {
-            state = sender is NSSwitch ? (sender as! NSSwitch).state: nil
-        } else {
-            state = sender is NSButton ? (sender as! NSButton).state: nil
-        }
-        
-        LaunchAtLogin.isEnabled = state! == NSControl.StateValue.on
+    @objc private func toggleLaunchAtLogin(_ sender: NSButton) {
+        LaunchAtLogin.isEnabled = sender.state == NSControl.StateValue.on
         if !Store.shared.exist(key: "runAtLoginInitialized") {
             Store.shared.set(key: "runAtLoginInitialized", value: true)
         }
+    }
+    
+    @objc private func toggleCombinedModules(_ sender: NSButton) {
+        self.combinedModulesState = sender.state == NSControl.StateValue.on
+        self.updateCombinedModulesSettings()
+        NotificationCenter.default.post(name: .toggleOneView, object: nil, userInfo: nil)
+    }
+    
+    private func updateCombinedModulesSettings() {
+        self.combinedModulesView?.setRowVisibility(1, newState: self.combinedModulesState)
+        self.combinedModulesView?.setRowVisibility(2, newState: self.combinedModulesState && CombinedModulesWidget.current != .icon)
+        for row in 3...6 {
+            self.combinedModulesView?.setRowVisibility(row, newState: self.combinedModulesState && CombinedModulesWidget.current == .widgets)
+        }
+        self.combinedModulesView?.setRowVisibility(7, newState: self.combinedModulesState && CombinedModulesWidget.current == .widgets && self.combinedModulesAlternateDetails)
+    }
+    
+    @objc private func toggleCombinedModulesWidget(_ sender: NSMenuItem) {
+        guard let key = sender.representedObject as? String, let widget = CombinedModulesWidget(rawValue: key) else { return }
+        CombinedModulesWidget.current = widget
+        self.updateCombinedModulesSettings()
+        NotificationCenter.default.post(name: .moduleRearrange, object: nil, userInfo: nil)
+    }
+    
+    @objc private func toggleCombinedModulesSpacing(_ sender: NSMenuItem) {
+        guard let key = sender.representedObject as? String else { return }
+        self.combinedModulesSpacing = key
+        NotificationCenter.default.post(name: .moduleRearrange, object: nil, userInfo: nil)
+    }
+    
+    @objc private func toggleCombinedModulesSeparator(_ sender: NSButton) {
+        self.combinedModulesSeparator = sender.state == NSControl.StateValue.on
+        NotificationCenter.default.post(name: .moduleRearrange, object: nil, userInfo: nil)
+    }
+    
+    @objc private func toggleCombinedModulesPopup(_ sender: NSButton) {
+        self.combinedModulesPopup = sender.state == NSControl.StateValue.on
+        NotificationCenter.default.post(name: .combinedModulesPopup, object: nil, userInfo: nil)
+    }
+    
+    @objc private func toggleCombinedModulesAlternateDetails(_ sender: NSButton) {
+        self.combinedModulesAlternateDetails = sender.state == NSControl.StateValue.on
+        self.updateCombinedModulesSettings()
+    }
+    
+    private func setCombinedModulesModifierKeys(_ binding: [UInt16]) {
+        self.combinedModulesModifierKeys = binding
+    }
+    
+    @objc private func toggleMenuBarPosition(_ sender: NSButton) {
+        self.keepMenuBarPosition = sender.state == NSControl.StateValue.on
+    }
+    
+    @objc private func importSettings() {
+        let panel = NSOpenPanel()
+        panel.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.modalPanelWindow)))
+        panel.begin { (result) in
+            guard result.rawValue == NSApplication.ModalResponse.OK.rawValue else { return }
+            if let url = panel.url {
+                Store.shared.import(from: url)
+            }
+        }
+    }
+    
+    @objc private func exportSettings() {
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = "Stats.plist"
+        panel.showsTagField = false
+        panel.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.modalPanelWindow)))
+        panel.begin { (result) in
+            guard result.rawValue == NSApplication.ModalResponse.OK.rawValue else { return }
+            if let url = panel.url {
+                Store.shared.export(to: url)
+            }
+        }
+    }
+    
+    @objc private func resetSettings() {
+        let alert = NSAlert()
+        alert.messageText = localizedString("Reset settings")
+        alert.informativeText = localizedString("Reset settings text")
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: localizedString("Yes"))
+        alert.addButton(withTitle: localizedString("No"))
+        
+        if alert.runModal() == .alertFirstButtonReturn {
+            Store.shared.reset()
+            restartApp(self)
+        }
+    }
+    
+    @objc private func toggleUninstallHelperButton(_ notification: Notification) {
+        guard let state = notification.userInfo?["state"] as? Bool, let v = self.fanHelperView else {
+            return
+        }
+        v.isHidden = !state
+    }
+    
+    @objc private func uninstallHelper() {
+        SMCHelper.shared.uninstall()
+    }
+    
+    @objc private func toggleCPUeStressTest() {
+        if self.CPUeTest.isRunning {
+            self.CPUeTest.stop()
+            self.CPUeButton?.title = localizedString("Run")
+        } else {
+            self.CPUeTest.start()
+            self.CPUeButton?.title = localizedString("Stop")
+        }
+    }
+    
+    @objc private func toggleCPUpStressTest() {
+        if self.CPUpTest.isRunning {
+            self.CPUpTest.stop()
+            self.CPUpButton?.title = localizedString("Run")
+        } else {
+            self.CPUpTest.start()
+            self.CPUpButton?.title = localizedString("Stop")
+        }
+    }
+    
+    @objc private func toggleCPUsStressTest() {
+        if self.CPUsTest.isRunning {
+            self.CPUsTest.stop()
+            self.CPUsButton?.title = localizedString("Run")
+        } else {
+            self.CPUsTest.start()
+            self.CPUsButton?.title = localizedString("Stop")
+        }
+    }
+    
+    @objc private func toggleGPUStressTest() {
+        guard let test = self.GPUTest else { return }
+        
+        if test.isRunning {
+            test.stop()
+            self.GPUButton?.title = localizedString("Run")
+        } else {
+            test.start()
+            self.GPUButton?.title = localizedString("Stop")
+        }
+    }
+    
+    @objc private func toggleRemoteMonitoringState(_ sender: NSButton) {
+        SystemStats.shared.monitoring = sender.state == NSControl.StateValue.on
+        self.remoteView?.setRowVisibility("monitoring_modules", newState: SystemStats.shared.monitoring)
+    }
+    @objc private func selectRemoteMonitoringModules(_ sender: NSButton) {
+        let supported = [ModuleType.CPU, .GPU, .RAM, .disk, .sensors, .network, .battery].map { $0.stringValue }
+        let list = modules.filter { $0.available && $0.enabled && supported.contains($0.name) }
+        let menu = NSMenu()
+        menu.autoenablesItems = false
+        
+        list.forEach { module in
+            let item = NSMenuItem(title: localizedString(module.name), action: #selector(self.toggleRemoteMonitoringModule), keyEquivalent: "")
+            item.target = self
+            item.representedObject = module.name
+            item.state = SystemStats.shared.isMonitoringEnabled(for: module.name) ? .on : .off
+            menu.addItem(item)
+        }
+        if list.isEmpty {
+            let item = NSMenuItem(title: localizedString("None"), action: nil, keyEquivalent: "")
+            item.isEnabled = false
+            menu.addItem(item)
+        }
+        
+        menu.popUp(positioning: nil, at: NSPoint(x: 0, y: sender.bounds.height), in: sender)
+    }
+    @objc private func toggleRemoteMonitoringModule(_ sender: NSMenuItem) {
+        guard let module = sender.representedObject as? String else { return }
+        let enabled = sender.state != .on
+        SystemStats.shared.setMonitoring(enabled, for: module)
+        sender.state = enabled ? .on : .off
+    }
+    @objc private func toggleRemoteControlState(_ sender: NSButton) {
+        if sender.state == .on {
+            let alert = NSAlert()
+            alert.messageText = localizedString("Warning")
+            alert.informativeText = localizedString("It is not recommended to enable remote control unless you know what you are doing.")
+            alert.alertStyle = .warning
+            alert.addButton(withTitle: localizedString("Enable"))
+            alert.addButton(withTitle: localizedString("Cancel"))
+            let response = alert.runModal()
+            if response == .alertFirstButtonReturn {
+                SystemStats.shared.control = true
+            } else {
+                sender.state = .off
+            }
+        } else {
+            SystemStats.shared.control = false
+        }
+    }
+    @objc private func toggleRemoteUpdateState(_ sender: NSButton) {
+        SystemStats.shared.update = sender.state == NSControl.StateValue.on
+    }
+    
+    @objc private func handleRemoteState(_ notification: Notification) {
+        guard let auth = notification.userInfo?["auth"] as? Bool else { return }
+        self.setRemoteSettings(auth)
+    }
+    
+    @objc private func loginToRemote() {
+        SystemStats.shared.login()
+    }
+    
+    @objc private func logoutFromRemote() {
+        SystemStats.shared.logout()
+    }
+    
+    @objc private func deregisterFromRemote() {
+        let alert = NSAlert()
+        alert.messageText = localizedString("Deregister")
+        alert.informativeText = localizedString("Deregister text")
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: localizedString("Yes"))
+        alert.addButton(withTitle: localizedString("No"))
+        
+        if alert.runModal() == .alertFirstButtonReturn {
+            SystemStats.shared.deregister()
+        }
+    }
+    
+    private func setRemoteSettings(_ auth: Bool) {
+        DispatchQueue.main.async {
+            for row in 1...8 {
+                self.remoteView?.setRowVisibility(row, newState: auth)
+            }
+            self.remoteView?.setRowVisibility(0, newState: !auth)
+            self.remoteView?.setRowVisibility("monitoring_modules", newState: auth && SystemStats.shared.monitoring)
+        }
+    }
+    
+    @objc private func toggleSystemWidgetsUpdatesState(_ sender: NSButton) {
+        self.systemWidgetsUpdatesState = sender.state == NSControl.StateValue.on
+    }
+}
+
+private class ModuleSelectorView: NSStackView {
+    init() {
+        super.init(frame: NSRect(x: 0, y: 0, width: 0, height: Constants.Widget.height + (Constants.Settings.margin*2)))
+        
+        self.translatesAutoresizingMaskIntoConstraints = false
+        self.edgeInsets = NSEdgeInsets(
+            top: Constants.Settings.margin,
+            left: Constants.Settings.margin,
+            bottom: Constants.Settings.margin,
+            right: Constants.Settings.margin
+        )
+        self.spacing = Constants.Settings.margin
+        
+        let background: NSVisualEffectView = {
+            let view = NSVisualEffectView(frame: NSRect.zero)
+            view.blendingMode = .withinWindow
+            view.material = .contentBackground
+            view.state = .active
+            view.wantsLayer = true
+            view.layer?.cornerRadius = 5
+            return view
+        }()
+        
+        var w = self.spacing
+        modules.filter({ $0.available }).sorted(by: { $0.combinedPosition < $1.combinedPosition }).forEach { (m: Module) in
+            let v = ModulePreview(id: m.name, icon: m.config.icon)
+            self.addArrangedSubview(v)
+            w += v.frame.width + self.spacing
+        }
+        
+        if w < 20 {
+            w = 20
+        }
+        
+        self.addSubview(background, positioned: .below, relativeTo: .none)
+        
+        self.setFrameSize(NSSize(width: w, height: self.frame.height))
+        background.setFrameSize(NSSize(width: w, height: self.frame.height))
+        
+        self.widthAnchor.constraint(equalToConstant: w).isActive = true
+        self.heightAnchor.constraint(equalToConstant: self.frame.height).isActive = true
+    }
+    
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+    
+    override func mouseDown(with event: NSEvent) {
+        let location = convert(event.locationInWindow, from: nil)
+        guard let targetIdx = self.views.firstIndex(where: { $0.hitTest(location) != nil }),
+              let window = self.window, self.views[targetIdx].identifier != nil else {
+            super.mouseDragged(with: event)
+            return
+        }
+        
+        let view = self.views[targetIdx]
+        let copy = ViewCopy(view)
+        copy.zPosition = 2
+        copy.transform = CATransform3DMakeScale(0.9, 0.9, 1)
+        
+        // hide the original view, show the copy
+        view.subviews.forEach({ $0.isHidden = true })
+        self.layer?.addSublayer(copy)
+        
+        // hide the copy view, show the original
+        defer {
+            copy.removeFromSuperlayer()
+            view.subviews.forEach({ $0.isHidden = false })
+        }
+        
+        var newIdx = -1
+        let originCenter = view.frame.midX
+        let originX = view.frame.origin.x
+        let p0 = convert(event.locationInWindow, from: nil).x
+        
+        window.trackEvents(matching: [.leftMouseDragged, .leftMouseUp], timeout: 1e6, mode: .eventTracking) { event, stop in
+            guard let event = event else {
+                stop.pointee = true
+                return
+            }
+            
+            if event.type == .leftMouseDragged {
+                let p1 = self.convert(event.locationInWindow, from: nil).x
+                let diff = p1 - p0
+                
+                CATransaction.begin()
+                CATransaction.setDisableActions(true)
+                copy.frame.origin.x = originX + diff
+                CATransaction.commit()
+                
+                let reordered = self.views.map{
+                    (view: $0, x: $0 !== view ? $0.frame.midX : originCenter + diff)
+                }.sorted{ $0.x < $1.x }.map { $0.view }
+                
+                guard let nextIndex = reordered.firstIndex(of: view),
+                      let prevIndex = self.views.firstIndex(of: view) else {
+                    stop.pointee = true
+                    return
+                }
+                
+                if nextIndex != prevIndex {
+                    newIdx = nextIndex
+                    view.removeFromSuperviewWithoutNeedingDisplay()
+                    self.insertArrangedSubview(view, at: newIdx)
+                    self.layoutSubtreeIfNeeded()
+                    
+                    for (i, v) in self.views(in: .leading).compactMap({$0 as? ModulePreview}).enumerated() {
+                        if let m = modules.first(where: { $0.name == v.identifier?.rawValue }) {
+                            m.combinedPosition = i
+                        }
+                    }
+                }
+            } else {
+                if newIdx != -1, let view = self.views[newIdx] as? ModulePreview, let id = view.identifier?.rawValue {
+                    NotificationCenter.default.post(name: .moduleRearrange, object: nil, userInfo: ["id": id])
+                }
+                view.mouseUp(with: event)
+                stop.pointee = true
+            }
+        }
+    }
+}
+
+private class ModulePreview: NSStackView {
+    private let imageView: NSImageView
+    
+    fileprivate init(id: String, icon: NSImage?) {
+        self.imageView = NSImageView(frame: NSRect(origin: .zero, size: NSSize(width: Constants.Widget.height, height: Constants.Widget.height)))
+        
+        let size: CGSize = CGSize(width: Constants.Widget.height + (Constants.Widget.spacing * 2), height: Constants.Widget.height)
+        super.init(frame: NSRect(x: 0, y: 0, width: size.width, height: size.height))
+        
+        self.wantsLayer = true
+        self.layer?.cornerRadius = 2
+        self.layer?.borderColor = NSColor(red: 221/255, green: 221/255, blue: 221/255, alpha: 1).cgColor
+        self.layer?.borderWidth = 1
+        self.layer?.backgroundColor = NSColor.white.cgColor
+        
+        self.identifier = NSUserInterfaceItemIdentifier(rawValue: id)
+        self.setAccessibilityElement(true)
+        self.toolTip = id
+        
+        self.orientation = .vertical
+        self.distribution = .fill
+        self.alignment = .centerY
+        self.spacing = 0
+        
+        self.imageView.image = icon
+        self.imageView.contentTintColor = self.isDarkMode ? .textBackgroundColor : .textColor
+        
+        self.addArrangedSubview(self.imageView)
+        
+        self.addTrackingArea(NSTrackingArea(
+            rect: NSRect(x: 0, y: 0, width: size.width, height: size.height),
+            options: [NSTrackingArea.Options.activeAlways, NSTrackingArea.Options.mouseEnteredAndExited, NSTrackingArea.Options.activeInActiveApp],
+            owner: self,
+            userInfo: nil
+        ))
+        
+        NSLayoutConstraint.activate([
+            self.widthAnchor.constraint(equalToConstant: size.width),
+            self.heightAnchor.constraint(equalToConstant: size.height)
+        ])
+    }
+    
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+    
+    override func updateLayer() {
+        self.imageView.contentTintColor = self.isDarkMode ? .textBackgroundColor : .textColor
+    }
+    
+    override func mouseEntered(with: NSEvent) {
+        NSCursor.pointingHand.set()
+    }
+    
+    override func mouseExited(with: NSEvent) {
+        NSCursor.arrow.set()
     }
 }

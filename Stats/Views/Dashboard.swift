@@ -10,331 +10,294 @@
 //
 
 import Cocoa
-import StatsKit
-import ModuleKit
-import os.log
+import Kit
 
-class Dashboard: NSScrollView {
-    private var uptimeField: NSTextField? = nil
-    
-    init() {
-        super.init(frame: NSRect(
-            x: 0,
-            y: 0,
-            width: 540,
-            height: 480
-        ))
-        
-        self.drawsBackground = false
-        self.borderType = .noBorder
-        self.hasVerticalScroller = true
-        self.hasHorizontalScroller = false
-        self.autohidesScrollers = true
-        self.horizontalScrollElasticity = .none
-        self.automaticallyAdjustsContentInsets = false
-        
-        NotificationCenter.default.addObserver(self, selector: #selector(windowOpens), name: .openModuleSettings, object: nil)
-        
-        let versionsView = self.versions()
-        let specsView = self.specs()
-        
-        let grid: NSGridView = NSGridView(frame: NSRect(
-            x: 0,
-            y: 0,
-            width: self.frame.width,
-            height: versionsView.frame.height + specsView.frame.height
-        ))
-        grid.rowSpacing = 0
-        grid.yPlacement = .fill
-        
-        let separator = NSBox()
-        separator.boxType = .separator
-        
-        grid.addRow(with: [versionsView])
-        grid.addRow(with: [separator])
-        grid.addRow(with: [specsView])
-        
-        grid.row(at: 0).height = versionsView.frame.height
-        grid.row(at: 2).height = specsView.frame.height
-        
-        self.documentView = grid
-        if let documentView = self.documentView {
-            documentView.scroll(NSPoint(x: 0, y: documentView.bounds.size.height))
-        }
-    }
-    
-    required public init?(coder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
-    }
-    
-    private func versions() -> NSView {
-        let view: NSView = NSView(frame: NSRect(x: 0, y: 0, width: self.frame.width, height: 280))
-        
-        let h: CGFloat = 120+60+18
-        let container: NSGridView = NSGridView(frame: NSRect(x: 0, y: (view.frame.height-h)/2, width: self.frame.width, height: h))
-        container.rowSpacing = 0
-        container.yPlacement = .center
-        container.xPlacement = .center
-        
-        let deviceImageView: NSImageView = NSImageView(image: SystemKit.shared.device.model.icon)
-        deviceImageView.frame = NSRect(x: (view.frame.width - 160)/2, y: 0, width: 160, height: 120)
-        
-        let deviceNameField: NSTextField = TextView(frame: NSRect(x: 0, y: 0, width: view.frame.width, height: 22))
-        deviceNameField.alignment = .center
-        deviceNameField.font = NSFont.systemFont(ofSize: 14, weight: .regular)
-        deviceNameField.stringValue = SystemKit.shared.device.model.name
-        deviceNameField.isSelectable = true
-        deviceNameField.toolTip = SystemKit.shared.device.modelIdentifier
-        
-        let osField: NSTextField = TextView(frame: NSRect(x: 0, y: 0, width: view.frame.width, height: 18))
-        osField.alignment = .center
-        osField.font = NSFont.systemFont(ofSize: 12, weight: .regular)
-        osField.stringValue = "macOS \(SystemKit.shared.device.os?.name ?? LocalizedString("Unknown")) (\(SystemKit.shared.device.os?.version.getFullVersion() ?? ""))"
-        osField.isSelectable = true
-        
-        container.addRow(with: [deviceImageView])
-        container.addRow(with: [deviceNameField])
-        container.addRow(with: [osField])
-        
-        container.column(at: 0).width = self.frame.width
-        container.row(at: 1).height = 22
-        container.row(at: 2).height = 20
-        
-        view.addSubview(container)
-        return view
-    }
-    
-    private func specs() -> NSView {
-        let view: NSView = NSView(frame: NSRect(x: 0, y: 0, width: self.frame.width, height: 0))
-        let grid: NSGridView = NSGridView(frame: NSRect(x: 0, y: 0, width: view.frame.width, height: 0))
-        grid.rowSpacing = 10
-        grid.columnSpacing = 20
-        grid.xPlacement = .trailing
-        grid.rowAlignment = .firstBaseline
-        grid.translatesAutoresizingMaskIntoConstraints = false
-        
-        let separator = NSBox()
-        separator.boxType = .separator
-        
-        grid.addRow(with: self.processor())
-        grid.addRow(with: self.ram())
-        grid.addRow(with: self.gpu())
-        grid.addRow(with: self.disk())
-        grid.addRow(with: self.serialNumber())
-        
-        grid.addRow(with: [separator])
-        grid.row(at: 5).mergeCells(in: NSRange(location: 0, length: 2))
-        grid.row(at: 5).topPadding = 5
-        grid.row(at: 5).bottomPadding = 5
-        
-        grid.addRow(with: self.upTime())
-        
-        view.addSubview(grid)
-        
-        var height: CGFloat = (CGFloat(grid.numberOfRows)-2) * grid.rowSpacing
-        for i in 0..<grid.numberOfRows {
-            let row = grid.row(at: i)
-            for a in 0..<row.numberOfCells {
-                if let contentView = row.cell(at: a).contentView {
-                    height += contentView.frame.height
-                }
-            }
-        }
-        view.setFrameSize(NSSize(width: view.frame.width, height: height))
-        
-        NSLayoutConstraint.activate([
-            grid.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            grid.centerYAnchor.constraint(equalTo: view.centerYAnchor),
-        ])
-        
-        return view
-    }
-    
-    @objc private func windowOpens(_ notification: Notification) {
-        guard notification.userInfo?["module"] as? String == "Dashboard" else {
-            return
+class Dashboard: NSStackView {
+    private var processorValue: String {
+        guard let cpu = SystemKit.shared.device.info.cpu, cpu.name != nil || cpu.physicalCores != nil || cpu.logicalCores != nil else {
+            return localizedString("Unknown")
         }
         
-        let form = DateComponentsFormatter()
-        form.maximumUnitCount = 2
-        form.unitsStyle = .full
-        form.allowedUnits = [.day, .hour, .minute]
-        if let bootDate = SystemKit.shared.device.bootDate {
-            if let duration = form.string(from: bootDate, to: Date()) {
-                self.uptimeField?.stringValue = duration
-            }
-        }
-    }
-    
-    // MARK: - Views
-    
-    private func processor() -> [NSView] {
         var value = ""
         
-        if let cpu = SystemKit.shared.device.info.cpu, cpu.name != nil || cpu.physicalCores != nil || cpu.logicalCores != nil {
-            if let name = cpu.name {
-                value += name
-            }
-            
-            if cpu.physicalCores != nil || cpu.logicalCores != nil {
-                if value.count != 0 {
-                    value += "\n"
-                }
-                
-                var mini = ""
-                if let cores = cpu.physicalCores {
-                    mini += "\(cores) cores"
-                }
-                if let threads = cpu.logicalCores {
-                    if mini != "" {
-                        mini += ", "
-                    }
-                    mini += "\(threads) threads"
-                }
-                value += "\(mini)"
-            }
-        } else {
-            value = LocalizedString("Unknown")
+        if let name = cpu.name {
+            value += name
         }
         
-        return [
-            self.titleView("\(LocalizedString("Processor")):"),
-            self.valueView(value),
-        ]
+        if cpu.physicalCores != nil || cpu.logicalCores != nil {
+            if !value.isEmpty {
+                value += "\n"
+            }
+            
+            var mini = ""
+            if let cores = cpu.physicalCores {
+                mini += localizedString("Number of cores", "\(cores)")
+            }
+            if let threads = cpu.logicalCores {
+                if mini != "" {
+                    mini += ", "
+                }
+                mini += localizedString("Number of threads", "\(threads)")
+            }
+            value += "\(mini)"
+        }
+        
+        if cpu.eCores != nil || cpu.pCores != nil {
+            if !value.isEmpty {
+                value += "\n"
+            }
+            
+            var mini = ""
+            if let eCores = cpu.eCores {
+                mini += localizedString("Number of e-cores", "\(eCores)")
+            }
+            if let pCores = cpu.pCores {
+                if mini != "" {
+                    mini += "\n"
+                }
+                mini += localizedString("Number of p-cores", "\(pCores)")
+            }
+            if let sCores = cpu.sCores {
+                if mini != "" {
+                    mini += "\n"
+                }
+                mini += localizedString("Number of s-cores", "\(sCores)")
+            }
+            value += "\(mini)"
+        }
+        
+        return value
     }
-    
-    private func ram() -> [NSView] {
+    private var memoryValue: String {
+        guard let dimms = SystemKit.shared.device.info.ram?.dimms else {
+            return localizedString("Unknown")
+        }
+        
         let sizeFormatter = ByteCountFormatter()
         sizeFormatter.allowedUnits = [.useGB]
         sizeFormatter.countStyle = .memory
         
         var value = ""
-        if let dimms = SystemKit.shared.device.info.ram?.dimms {
-            for i in 0..<dimms.count {
-                let dimm = dimms[i]
-                var row = ""
-                
-                if let size = dimm.size {
-                    row += size
-                }
-                
-                if let speed = dimm.speed {
-                    if row.count != 0 && row.last != " " {
-                        row += " "
-                    }
-                    row += speed
-                }
-                
-                if let type = dimm.type {
-                    if row.count != 0 && row.last != " " {
-                        row += " "
-                    }
-                    row += type
-                }
-                
-                if dimm.bank != nil || dimm.channel != nil {
-                    if row.count != 0 && row.last != " " {
-                        row += " "
-                    }
-                    
-                    var mini = "("
-                    if let bank = dimm.bank {
-                        mini += "slot \(bank)"
-                    }
-                    if let ch = dimm.channel {
-                        mini += "\(mini == "(" ? "" : "/")ch \(ch)"
-                    }
-                    row += "\(mini))"
-                }
-                
-                value += "\(row)\(i == dimms.count-1 ? "" : "\n")"
+        for i in 0..<dimms.count {
+            let dimm = dimms[i]
+            var row = ""
+            
+            if let size = dimm.size {
+                row += size
             }
-        } else {
-            value = LocalizedString("Unknown")
+            
+            if let speed = dimm.speed {
+                if !row.isEmpty && row.last != " " {
+                    row += " "
+                }
+                row += speed
+            }
+            
+            if let type = dimm.type {
+                if !row.isEmpty && row.last != " " {
+                    row += " "
+                }
+                row += type
+            }
+            
+            if dimm.bank != nil || dimm.channel != nil {
+                if !row.isEmpty && row.last != " " {
+                    row += " "
+                }
+                
+                var mini = "("
+                if let bank = dimm.bank {
+                    mini += "slot \(bank)"
+                }
+                if let ch = dimm.channel {
+                    mini += "\(mini == "(" ? "" : "/")ch \(ch)"
+                }
+                row += "\(mini))"
+            }
+            
+            value += "\(row)\(i == dimms.count-1 ? "" : "\n")"
+        }
+        return value
+    }
+    private var graphicsValue: String {
+        guard let gpus = SystemKit.shared.device.info.gpu else {
+            return localizedString("Unknown")
         }
         
-        return [
-            self.titleView("\(LocalizedString("Memory")):"),
-            self.valueView("\(value)"),
-        ]
-    }
-    
-    private func gpu() -> [NSView] {
         var value = ""
-        if let gpus = SystemKit.shared.device.info.gpu {
-            for i in 0..<gpus.count {
-                var row = gpus[i].name != nil ? gpus[i].name! : LocalizedString("Unknown")
-                
-                if let size = gpus[i].vram {
-                    row += " (\(size))"
+        for i in 0..<gpus.count {
+            var row = gpus[i].name != nil ? gpus[i].name! : localizedString("Unknown")
+            
+            if gpus[i].vram != nil || gpus[i].cores != nil {
+                row += " ("
+                if let cores = gpus[i].cores {
+                    row += localizedString("Number of cores", "\(cores)")
                 }
-                
-                value += "\(row)\(i == gpus.count-1 ? "" : "\n")"
+                if let size = gpus[i].vram {
+                    if gpus[i].cores != nil {
+                        row += ", \(size)"
+                    } else {
+                        row += "\(size)"
+                    }
+                }
+                row += ")"
             }
-        } else {
-            value = LocalizedString("Unknown")
+            
+            value += "\(row)\(i == gpus.count-1 ? "" : "\n")"
+        }
+        return value
+    }
+    private var disksValue: String {
+        guard let disks = SystemKit.shared.device.info.disk else {
+            return localizedString("Unknown")
         }
         
-        return [
-            self.titleView("\(LocalizedString("Graphics")):"),
-            self.valueView(value),
-        ]
+        var value = ""
+        for i in 0..<disks.count {
+            var row = disks[i].name != nil ? disks[i].name! : localizedString("Unknown")
+            if let size = disks[i].size {
+                let value = ByteCountFormatter.string(fromByteCount: size, countStyle: .file)
+                row += " (\(value))"
+            }
+            value += "\(row)\(i == disks.count-1 ? "" : "\n")"
+        }
+        
+        return value
     }
-    
-    private func disk() -> [NSView] {
-        return [
-            self.titleView("\(LocalizedString("Disk")):"),
-            self.valueView("\(SystemKit.shared.device.info.disk?.model ?? SystemKit.shared.device.info.disk?.name ?? LocalizedString("Unknown"))"),
-        ]
+    private var displaysValue: String {
+        guard let displays = SystemKit.shared.device.display else {
+            return localizedString("Unknown")
+        }
+        
+        var value = ""
+        for i in 0..<displays.count {
+            var row = displays[i].name != nil ? displays[i].name! : localizedString("Unknown")
+            if let size = displays[i].size {
+                let displaySize = String(format: "%.1f", size).replacingOccurrences(of: ".0", with: "")
+                row += " (\(displaySize)\")"
+            }
+            if displays[i].resolution != nil || displays[i].refreshRate != nil {
+                var details = ""
+                if let res = displays[i].resolution {
+                    details = "\(Int(res.width))x\(Int(res.height))"
+                }
+                if let rr = displays[i].refreshRate {
+                    if !details.isEmpty {
+                        details += ", "
+                    }
+                    details += "\(String(format: "%.0f", rr))Hz"
+                }
+                if !details.isEmpty {
+                    row += "\n\(details)"
+                }
+            }
+            value += "\(row)\(i == displays.count-1 ? "" : "\n")"
+        }
+        
+        return value
     }
-    
-    private func serialNumber() -> [NSView] {
-        return [
-            self.titleView("\(LocalizedString("Serial number")):"),
-            self.valueView("\(SystemKit.shared.device.serialNumber ?? LocalizedString("Unknown"))"),
-        ]
-    }
-    
-    private func upTime() -> [NSView] {
+    private var uptimeValue: String {
         let form = DateComponentsFormatter()
         form.maximumUnitCount = 2
         form.unitsStyle = .full
         form.allowedUnits = [.day, .hour, .minute]
         
-        var value = LocalizedString("Unknown")
+        var value = localizedString("Unknown")
         if let bootDate = SystemKit.shared.device.bootDate {
             if let duration = form.string(from: bootDate, to: Date()) {
                 value = duration
             }
         }
         
-        let valueView = self.valueView(value)
-        self.uptimeField = valueView
-        
-        return [
-            self.titleView("\(LocalizedString("Uptime")):"),
-            valueView,
-        ]
+        return value
     }
     
-    // MARK: - Helpers
+    private var uptimeField: NSTextField?
     
-    private func titleView(_ value: String) -> NSTextField {
-        let field: NSTextField = TextView(frame: NSRect(x: 0, y: 0, width: 120, height: 17))
-        field.font = NSFont.systemFont(ofSize: 13, weight: .regular)
-        field.textColor = .labelColor
-        field.stringValue = value
+    init() {
+        super.init(frame: NSRect.zero)
         
-        return field
+        let scrollView = ScrollableStackView(orientation: .vertical)
+        scrollView.stackView.edgeInsets = NSEdgeInsets(
+            top: 0,
+            left: Constants.Settings.margin,
+            bottom: Constants.Settings.margin,
+            right: Constants.Settings.margin
+        )
+        scrollView.stackView.spacing = Constants.Settings.margin
+        
+        scrollView.stackView.addArrangedSubview(self.deviceView())
+        
+        scrollView.stackView.addArrangedSubview(PreferencesSection([
+            PreferencesRow(localizedString("Processor"), "", component: textView(self.processorValue, alignment: .trailing)),
+            PreferencesRow(localizedString("Memory"), component: textView(self.memoryValue, alignment: .trailing)),
+            PreferencesRow(localizedString("Graphics"), component: textView(self.graphicsValue, alignment: .trailing)),
+            PreferencesRow(localizedString("Disks"), component: textView(self.disksValue, alignment: .trailing)),
+            PreferencesRow(localizedString("Display"), "", component: textView(self.displaysValue, alignment: .trailing))
+        ]))
+        
+        scrollView.stackView.addArrangedSubview(PreferencesSection([
+            PreferencesRow(localizedString("Model identifier"), component: textView(SystemKit.shared.device.model.id)),
+            PreferencesRow(localizedString("Production year"), component: textView("\(SystemKit.shared.device.model.year)")),
+            PreferencesRow(localizedString("Serial number"), component: textView(SystemKit.shared.device.serialNumber ?? localizedString("Unknown")))
+        ]))
+        
+        self.uptimeField = textView(self.uptimeValue)
+        scrollView.stackView.addArrangedSubview(PreferencesSection([
+            PreferencesRow(localizedString("Uptime"), component: self.uptimeField!)
+        ]))
+        
+        self.addArrangedSubview(scrollView)
+        
+        NotificationCenter.default.addObserver(self, selector: #selector(windowOpens), name: .openModuleSettings, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(windowOpens), name: .toggleSettings, object: nil)
     }
     
-    private func valueView(_ value: String) -> NSTextField {
-        let field: NSTextField = TextView(frame: NSRect(x: 0, y: 0, width: 0, height: 17))
-        field.font = NSFont.systemFont(ofSize: 13, weight: .light)
-        field.alignment = .right
-        field.stringValue = value
-        field.isSelectable = true
+    required public init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+    
+    deinit {
+        NotificationCenter.default.removeObserver(self, name: .openModuleSettings, object: nil)
+        NotificationCenter.default.removeObserver(self, name: .toggleSettings, object: nil)
+    }
+    
+    private func deviceView() -> NSView {
+        let container: NSGridView = NSGridView()
+        container.rowSpacing = 0
+        container.yPlacement = .center
+        container.xPlacement = .center
         
-        return field
+        let deviceImageView: NSImageView = NSImageView(image: SystemKit.shared.device.model.icon)
+        deviceImageView.widthAnchor.constraint(equalToConstant: 140).isActive = true
+        deviceImageView.heightAnchor.constraint(equalToConstant: 140).isActive = true
+        
+        let deviceNameField: NSTextField = TextView()
+        deviceNameField.alignment = .center
+        deviceNameField.font = NSFont.systemFont(ofSize: 17, weight: .semibold)
+        deviceNameField.stringValue = SystemKit.shared.device.model.name
+        deviceNameField.isSelectable = true
+        deviceNameField.toolTip = SystemKit.shared.device.model.id
+        
+        let osField: NSTextField = TextView()
+        osField.alignment = .center
+        osField.font = NSFont.systemFont(ofSize: 12, weight: .regular)
+        osField.stringValue = "macOS \(SystemKit.shared.device.os?.name ?? localizedString("Unknown")) (\(SystemKit.shared.device.os?.version.getFullVersion() ?? ""))"
+        osField.toolTip = SystemKit.shared.device.os?.build ?? localizedString("Unknown")
+        osField.isSelectable = true
+        
+        container.addRow(with: [deviceImageView])
+        container.addRow(with: [deviceNameField])
+        container.addRow(with: [osField])
+        
+        container.row(at: 1).height = 22
+        container.row(at: 2).height = 20
+        
+        return container
+    }
+    
+    @objc private func windowOpens(_ notification: Notification) {
+        guard let moduleName = notification.userInfo?["module"] as? String, moduleName == "Dashboard" || moduleName == "Combined modules" else { return }
+        self.uptimeField?.stringValue = self.uptimeValue
     }
 }

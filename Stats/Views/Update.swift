@@ -10,33 +10,32 @@
 //
 
 import Cocoa
-import StatsKit
-import os.log
+import Kit
 
-class UpdateWindow: NSWindow, NSWindowDelegate {
+internal class UpdateWindow: NSWindow, NSWindowDelegate {
+    internal var onClose: (() -> Void)?
+    
     private let viewController: UpdateViewController = UpdateViewController()
     
     init() {
-        let w = NSScreen.main!.frame.width
-        let h = NSScreen.main!.frame.height
         super.init(
-            contentRect: NSMakeRect(
-                w - self.viewController.view.frame.width,
-                h - self.viewController.view.frame.height,
-                self.viewController.view.frame.width,
-                self.viewController.view.frame.height
+            contentRect: NSRect(
+                x: 0,
+                y: 0,
+                width: self.viewController.view.frame.width,
+                height: self.viewController.view.frame.height
             ),
-            styleMask: [.closable, .titled, .fullSizeContentView],
+            styleMask: [.closable, .titled],
             backing: .buffered,
             defer: true
         )
         
+        self.title = "Stats"
         self.contentViewController = self.viewController
-        self.animationBehavior = .default
-        self.collectionBehavior = .transient
         self.titlebarAppearsTransparent = true
-        self.appearance = NSAppearance(named: .darkAqua)
-        self.center()
+        self.isReleasedWhenClosed = false
+        self.delegate = self
+        self.positionCenter()
         self.setIsVisible(false)
         
         let windowController = NSWindowController()
@@ -44,12 +43,30 @@ class UpdateWindow: NSWindow, NSWindowDelegate {
         windowController.loadWindow()
     }
     
-    public func open(_ v: version_s) {
-        if !self.isVisible {
+    internal func open(_ v: version_s, settingButton: Bool = false) {
+        if !self.isVisible || settingButton {
             self.setIsVisible(true)
             self.makeKeyAndOrderFront(nil)
         }
         self.viewController.open(v)
+    }
+    
+    func windowWillClose(_ notification: Notification) {
+        let onClose = self.onClose
+        DispatchQueue.main.async {
+            onClose?()
+        }
+    }
+    
+    private func positionCenter() {
+        guard let screen = NSScreen.main else {
+            self.center()
+            return
+        }
+        self.setFrameOrigin(NSPoint(
+            x: (screen.frame.width - self.viewController.view.frame.width)/2,
+            y: (screen.frame.height - self.viewController.view.frame.height)/1.75
+        ))
     }
 }
 
@@ -66,7 +83,7 @@ private class UpdateViewController: NSViewController {
         fatalError("init(coder:) has not been implemented")
     }
     
-    public func open(_ v: version_s) {
+    internal func open(_ v: version_s) {
         self.update.clear()
         
         if v.newest {
@@ -85,7 +102,7 @@ private class UpdateView: NSView {
         super.init(frame: CGRect(x: frame.origin.x, y: frame.origin.y, width: frame.width, height: frame.height))
         self.wantsLayer = true
         
-        let sidebar = NSVisualEffectView(frame: NSMakeRect(0, 0, self.frame.width, self.frame.height))
+        let sidebar = NSVisualEffectView(frame: NSRect(x: 0, y: 0, width: self.frame.width, height: self.frame.height))
         sidebar.material = .sidebar
         sidebar.blendingMode = .behindWindow
         sidebar.state = .active
@@ -97,65 +114,107 @@ private class UpdateView: NSView {
         fatalError("init(coder:) has not been implemented")
     }
     
-    public func newVersion(_ version: version_s) {
+    internal func newVersion(_ version: version_s) {
         self.version = version
-        let view: NSView = NSView(frame: NSRect(x: 10, y: 10, width: self.frame.width - 20, height: self.frame.height - 20 - 26))
+        let view: NSStackView = NSStackView(frame: NSRect(
+            x: Constants.Settings.margin,
+            y: 0,
+            width: self.frame.width-(Constants.Settings.margin*2),
+            height: self.frame.height
+        ))
+        view.orientation = .vertical
+        view.alignment = .centerX
+        view.distribution = .fillEqually
+        view.spacing = Constants.Settings.margin
+        view.edgeInsets = NSEdgeInsets(
+            top: Constants.Settings.margin*2,
+            left: 0,
+            bottom: Constants.Settings.margin,
+            right: 0
+        )
         
-        let title: NSTextField = TextView(frame: NSRect(x: 0, y: view.frame.height - 20, width: view.frame.width, height: 18))
+        let header: NSStackView = NSStackView(frame: NSRect(x: 0, y: 0, width: 0, height: 44))
+        header.heightAnchor.constraint(equalToConstant: header.frame.height).isActive = true
+        header.orientation = .horizontal
+        header.spacing = 10
+        header.distribution = .equalCentering
+        
+        let icon: NSImageView = NSImageView(image: NSImage(named: NSImage.Name("Stats"))!)
+        icon.setFrameSize(NSSize(width: 44, height: 44))
+        icon.widthAnchor.constraint(equalToConstant: 44).isActive = true
+        let title: NSTextField = TextView()
         title.font = NSFont.systemFont(ofSize: 14, weight: .medium)
-        title.alignment = .center
-        title.stringValue = LocalizedString("New version available")
+        title.stringValue = localizedString("New version available")
         
-        let currentVersionString = "\(LocalizedString("Current version: "))\(version.current)"
-        let currentVersionWidth = currentVersionString.widthOfString(usingFont: .systemFont(ofSize: 13, weight: .light))
-        let currentVersion: NSTextField = TextView(frame: NSRect(
-            x: (view.frame.width-currentVersionWidth)/2,
-            y: title.frame.origin.y - 40,
-            width: currentVersionWidth,
-            height: 16
-        ))
-        currentVersion.stringValue = currentVersionString
+        header.addArrangedSubview(icon)
+        header.addArrangedSubview(title)
         
-        let latestVersionString = "\(LocalizedString("Latest version: "))\(version.latest)"
-        let latestVersionWidth = latestVersionString.widthOfString(usingFont: .systemFont(ofSize: 13, weight: .light))
-        let latestVersion: NSTextField = TextView(frame: NSRect(
-        x: (view.frame.width-currentVersionWidth)/2,
-            y: currentVersion.frame.origin.y - 22,
-            width: latestVersionWidth,
-            height: 16
-        ))
-        latestVersion.stringValue = latestVersionString
+        let versions: NSGridView = NSGridView(frame: NSRect(x: 0, y: 0, width: view.frame.width, height: 32))
+        versions.heightAnchor.constraint(equalToConstant: versions.frame.height).isActive = true
+        versions.rowSpacing = 0
+        versions.yPlacement = .fill
+        versions.xPlacement = .fill
+        
+        let currentVersionTitle: NSTextField = TextView(frame: NSRect(x: 0, y: 0, width: 0, height: 16))
+        currentVersionTitle.stringValue = localizedString("Current version: ")
+        let currentVersion: NSTextField = TextView(frame: NSRect(x: 0, y: 0, width: 0, height: 0))
+        currentVersion.stringValue = version.current
+        
+        let latestVersionTitle: NSTextField = TextView(frame: NSRect(x: 0, y: 0, width: 0, height: 16))
+        latestVersionTitle.stringValue = localizedString("Latest version: ")
+        let latestVersion: NSTextField = TextView(frame: NSRect(x: 0, y: 0, width: 0, height: 0))
+        latestVersion.stringValue = version.latest
+        
+        versions.addRow(with: [currentVersionTitle, currentVersion])
+        versions.addRow(with: [latestVersionTitle, latestVersion])
+        
+        let buttons: NSStackView = NSStackView(frame: NSRect(x: 0, y: 0, width: view.frame.width, height: 26))
+        buttons.heightAnchor.constraint(equalToConstant: buttons.frame.height).isActive = true
+        buttons.orientation = .horizontal
+        buttons.spacing = 10
+        buttons.distribution = .fillEqually
         
         let closeButton: NSButton = NSButton(frame: NSRect(x: 0, y: 0, width: view.frame.width/2, height: 26))
-        closeButton.title = LocalizedString("Close")
+        closeButton.title = localizedString("Close")
         closeButton.bezelStyle = .rounded
         closeButton.action = #selector(self.close)
         closeButton.target = self
         
+        let changelogButton: NSButton = NSButton(frame: NSRect(x: 0, y: 0, width: 0, height: 26))
+        changelogButton.title = localizedString("Changelog")
+        changelogButton.bezelStyle = .rounded
+        changelogButton.action = #selector(self.changelog)
+        changelogButton.target = self
+        
         let downloadButton: NSButton = NSButton(frame: NSRect(x: view.frame.width/2, y: 0, width: view.frame.width/2, height: 26))
-        downloadButton.title = LocalizedString("Download")
+        downloadButton.title = localizedString("Download")
         downloadButton.bezelStyle = .rounded
         downloadButton.action = #selector(self.download)
         downloadButton.target = self
         
-        view.addSubview(title)
-        view.addSubview(currentVersion)
-        view.addSubview(latestVersion)
-        view.addSubview(closeButton)
-        view.addSubview(downloadButton)
+        buttons.addArrangedSubview(closeButton)
+        buttons.addArrangedSubview(changelogButton)
+        buttons.addArrangedSubview(downloadButton)
+        
+        view.addArrangedSubview(header)
+        view.addArrangedSubview(NSView())
+        view.addArrangedSubview(versions)
+        view.addArrangedSubview(NSView())
+        view.addArrangedSubview(buttons)
+        
         self.addSubview(view)
     }
     
-    public func noUpdates() {
+    internal func noUpdates() {
         let view: NSView = NSView(frame: NSRect(x: 10, y: 10, width: self.frame.width - 20, height: self.frame.height - 20))
         
-        let title: NSTextField = TextView(frame: NSRect(x: 0, y: ((view.frame.height - 18)/2), width: view.frame.width, height: 40))
+        let title: NSTextField = TextView(frame: NSRect(x: 0, y: ((view.frame.height - 18)/2), width: view.frame.width, height: 34))
         title.font = NSFont.systemFont(ofSize: 14, weight: .light)
         title.alignment = .center
-        title.stringValue = LocalizedString("The latest version of Stats installed")
+        title.stringValue = localizedString("The latest version of Stats installed")
         
         let button: NSButton = NSButton(frame: NSRect(x: 0, y: 0, width: view.frame.width, height: 26))
-        button.title = LocalizedString("Close")
+        button.title = localizedString("Close")
         button.bezelStyle = .rounded
         button.action = #selector(self.close)
         button.target = self
@@ -165,11 +224,11 @@ private class UpdateView: NSView {
         self.addSubview(view)
     }
     
-    public func clear() {
+    internal func clear() {
         self.subviews.filter{ !($0 is NSVisualEffectView) }.forEach{ $0.removeFromSuperview() }
     }
     
-    @objc private func download(_ sender: Any) {
+    @objc private func download() {
         guard let urlString = self.version?.url, let url = URL(string: urlString) else {
             return
         }
@@ -181,7 +240,7 @@ private class UpdateView: NSView {
         let title: NSTextField = TextView(frame: NSRect(x: 0, y: view.frame.height - 28, width: view.frame.width, height: 18))
         title.font = NSFont.systemFont(ofSize: 14, weight: .semibold)
         title.alignment = .center
-        title.stringValue = LocalizedString("Downloading...")
+        title.stringValue = localizedString("Downloading...")
         
         let progressBar: NSProgressIndicator = NSProgressIndicator()
         progressBar.frame = NSRect(x: 20, y: 64, width: view.frame.width - 40, height: 22)
@@ -196,24 +255,24 @@ private class UpdateView: NSView {
         state.stringValue = "0%"
         
         let closeButton: NSButton = NSButton(frame: NSRect(x: 0, y: 0, width: view.frame.width, height: 26))
-        closeButton.title = LocalizedString("Cancel")
+        closeButton.title = localizedString("Cancel")
         closeButton.bezelStyle = .rounded
         closeButton.action = #selector(self.close)
         closeButton.target = self
         
         let installButton: NSButton = NSButton(frame: NSRect(x: view.frame.width/2, y: 0, width: view.frame.width/2, height: 26))
-        installButton.title = LocalizedString("Install")
+        installButton.title = localizedString("Install")
         installButton.bezelStyle = .rounded
         installButton.action = #selector(self.install)
         installButton.target = self
         installButton.isHidden = true
         
-        updater.download(url, progressHandler: { progress in
+        updater.download(url, progress: { progress in
             DispatchQueue.main.async {
                 progressBar.doubleValue = progress.fractionCompleted
                 state.stringValue = "\(Int(progress.fractionCompleted*100))%"
             }
-        }, doneHandler: { path in
+        }, completion: { path in
             self.path = path
             DispatchQueue.main.async {
                 closeButton.setFrameSize(NSSize(width: view.frame.width/2, height: closeButton.frame.height))
@@ -229,11 +288,68 @@ private class UpdateView: NSView {
         self.addSubview(view)
     }
     
-    @objc private func close(_ sender: Any) {
+    @objc private func close() {
         self.window?.close()
     }
     
-    @objc private func install(_ sender: Any) {
-        updater.install(path: self.path)
+    @objc private func changelog() {
+        if let version = self.version {
+            NSWorkspace.shared.open(URL(string: "https://github.com/exelban/stats/releases/tag/\(version.latest)")!)
+        }
+    }
+    
+    @objc private func install() {
+        self.clear()
+        
+        let view: NSStackView = NSStackView()
+        view.translatesAutoresizingMaskIntoConstraints = false
+        view.orientation = .vertical
+        view.alignment = .centerX
+        view.spacing = 4
+        
+        let spinner: NSProgressIndicator = NSProgressIndicator()
+        spinner.style = .spinning
+        spinner.controlSize = .small
+        spinner.isIndeterminate = true
+        spinner.startAnimation(nil)
+        
+        let title: NSTextField = TextView()
+        title.font = NSFont.systemFont(ofSize: 14, weight: .semibold)
+        title.alignment = .center
+        title.stringValue = localizedString("Installing...")
+        
+        let state = NSTextField(wrappingLabelWithString: localizedString("Stats will restart automatically"))
+        state.font = NSFont.systemFont(ofSize: 12, weight: .regular)
+        state.alignment = .center
+        state.textColor = .secondaryLabelColor
+        state.isSelectable = false
+        
+        view.addArrangedSubview(spinner)
+        view.setCustomSpacing(12, after: spinner)
+        view.addArrangedSubview(title)
+        view.addArrangedSubview(state)
+        self.addSubview(view)
+        
+        NSLayoutConstraint.activate([
+            view.leadingAnchor.constraint(equalTo: self.leadingAnchor, constant: Constants.Settings.margin),
+            view.trailingAnchor.constraint(equalTo: self.trailingAnchor, constant: -Constants.Settings.margin),
+            view.centerYAnchor.constraint(equalTo: self.centerYAnchor),
+            state.widthAnchor.constraint(equalTo: view.widthAnchor)
+        ])
+        
+        let path = self.path
+        DispatchQueue.global(qos: .userInitiated).async {
+            updater.install(path: path) { error in
+                if let error {
+                    DispatchQueue.main.async {
+                        self.clear()
+                        if let version = self.version {
+                            self.newVersion(version)
+                        }
+                        showAlert("Error update Stats", error, .critical)
+                    }
+                }
+            }
+        }
     }
 }
